@@ -1,0 +1,17 @@
+<app-navbar></app-navbar>
+<div class="container mt-3">
+    <div class="mb-3 row">
+        <div class="col-sm-10">
+            <input class="form-control" type="file" id="formFile" (change)="onFileSelected($event)">
+        </div>
+        <button type="button" class="btn btn-primary col-sm-2">Ejecutar</button>
+    </div>
+    <div>
+        <textarea id="editorComandos" class="form-control" placeholder="Comandos..." style="height: 220px; resize: none;"></textarea>
+    </div>
+    
+    <div class="mt-3">
+        <label>Consola</label>
+        <textarea id="editorComandos" class="form-control" style="height: 220px; resize: none;" disabled></textarea>
+    </div>
+</div>

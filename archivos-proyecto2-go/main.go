@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"math"
 	"math/rand"
 	"net/http"
 	"os"
@@ -62,6 +63,50 @@ type MountFormat struct {
 	S_mtime    time.Time
 }
 
+type SuperBloque struct {
+	S_filesystem_type   int32
+	S_inodes_count      int32
+	S_blocks_count      int32
+	S_free_blocks_count int32
+	S_free_inodes_count int32
+	S_mtime             [16]byte
+	S_mnt_count         int32
+	S_magic             int32
+	S_inode_size        int32
+	S_block_size        int32
+	S_firts_ino         int32
+	S_first_blo         int32
+	S_bm_inode_start    int32
+	S_bm_block_start    int32
+	S_inode_start       int32
+	S_block_start       int32
+}
+
+type Inodo struct {
+	I_uid   int32
+	I_gid   int32
+	I_size  int32
+	I_atime [16]byte
+	I_ctime [16]byte
+	I_mtime [16]byte
+	I_block [16]int32
+	I_type  byte
+	I_perm  int32
+}
+
+type Content struct {
+	B_name  [12]byte
+	B_inodo int32
+}
+
+type BloqueCarpetas struct {
+	B_content [4]Content
+}
+
+type BloqueArchivos struct {
+	B_content [64]byte
+}
+
 var mountMap = make(map[string]MountFormat)
 
 func separarPorEspacios(instruccion string) {
@@ -109,6 +154,8 @@ func separarPorEspacios(instruccion string) {
 		fdisk(tokens)
 	} else if tokens[0] == "mount" {
 		mount(tokens)
+	} else if tokens[0] == "mkfs" {
+		mkfs(tokens)
 	} else {
 		fmt.Println("No se reconoce el comando a ejecutar.")
 	}
@@ -553,13 +600,18 @@ func fdisk(tokens []string) {
 								panic(err)
 							}
 							tamanoUsado += int(e.Part_s)
-							_, err = f.Seek(int64(e.Part_next), 0)
-							if err != nil {
-								panic(err)
-							}
-							err = binary.Read(f, binary.LittleEndian, &auxEbr)
-							if err != nil {
-								panic(err)
+							fmt.Println(e.Part_next)
+							if e.Part_next != -1 {
+								_, err = f.Seek(int64(e.Part_next), 0)
+								if err != nil {
+									panic(err)
+								}
+								err = binary.Read(f, binary.LittleEndian, &auxEbr)
+								if err != nil {
+									panic(err)
+								}
+							} else {
+								break
 							}
 						}
 					}
@@ -580,7 +632,7 @@ func fdisk(tokens []string) {
 							if err != nil {
 								panic(err)
 							}
-							if string(e.Part_name[:]) == "" {
+							if e.Part_name[0] == '\x00' {
 								auxUsado := tamanoUsado - (int(e.Part_s) - aux)
 								if aux <= int(e.Part_s) && auxUsado <= tamanoExtendida {
 									_, err = f.Seek(int64(binary.Size(e))*-1, 1)
@@ -611,13 +663,18 @@ func fdisk(tokens []string) {
 								}
 							}
 							startPart = int(e.Part_start)
-							_, err = f.Seek(int64(e.Part_next), 0)
-							if err != nil {
-								panic(err)
-							}
-							err = binary.Read(f, binary.LittleEndian, &auxEbr)
-							if err != nil {
-								panic(err)
+							fmt.Println(e.Part_next)
+							if e.Part_next != -1 {
+								_, err = f.Seek(int64(e.Part_next), 0)
+								if err != nil {
+									panic(err)
+								}
+								err = binary.Read(f, binary.LittleEndian, &auxEbr)
+								if err != nil {
+									panic(err)
+								}
+							} else {
+								break
 							}
 						}
 					}
@@ -635,8 +692,8 @@ func fdisk(tokens []string) {
 								if err != nil {
 									panic(err)
 								}
-								eb.Part_next = eb.Part_start + eb.Part_s
-								_, err = f.Seek(-int64(unsafe.Sizeof(eb)), 1)
+								eb.Part_next = eb.Part_start + eb.Part_s + int32(unsafe.Sizeof(byte(0)))
+								_, err = f.Seek(int64(startPart+int(unsafe.Sizeof(byte(0)))), 0)
 								if err != nil {
 									panic(err)
 								}
@@ -650,9 +707,9 @@ func fdisk(tokens []string) {
 								e.Part_s = int32(aux)
 								e.Part_status = 0
 								e.Part_fit = byte(fitChar)
-								e.Part_start = eb.Part_start + eb.Part_s
+								e.Part_start = eb.Part_start + eb.Part_s + int32(unsafe.Sizeof(byte(0)))
 								e.Part_next = -1
-								start := eb.Part_start + eb.Part_s
+								start := eb.Part_start + eb.Part_s + int32(unsafe.Sizeof(byte(0)))
 								_, err = f.Seek(int64(start), 0)
 								if err != nil {
 									panic(err)
@@ -827,13 +884,17 @@ func fdisk(tokens []string) {
 								panic(err)
 							}
 							tamanoUsado += int(e.Part_s)
-							_, err = f.Seek(int64(e.Part_next), 0)
-							if err != nil {
-								panic(err)
-							}
-							err = binary.Read(f, binary.LittleEndian, &auxEbr)
-							if err != nil {
-								panic(err)
+							if e.Part_next != -1 {
+								_, err = f.Seek(int64(e.Part_next), 0)
+								if err != nil {
+									panic(err)
+								}
+								err = binary.Read(f, binary.LittleEndian, &auxEbr)
+								if err != nil {
+									panic(err)
+								}
+							} else {
+								break
 							}
 						}
 					}
@@ -862,14 +923,18 @@ func fdisk(tokens []string) {
 									valPeor = int(e.Part_s)
 								}
 							}
-							_, err = f.Seek(int64(e.Part_next), 0)
-							if err != nil {
-								panic(err)
-							}
 							startPart = int(e.Part_start)
-							err = binary.Read(f, binary.LittleEndian, &auxEbr)
-							if err != nil {
-								panic(err)
+							if e.Part_next != -1 {
+								_, err = f.Seek(int64(e.Part_next), 0)
+								if err != nil {
+									panic(err)
+								}
+								err = binary.Read(f, binary.LittleEndian, &auxEbr)
+								if err != nil {
+									panic(err)
+								}
+							} else {
+								break
 							}
 						}
 						cont++
@@ -918,13 +983,17 @@ func fdisk(tokens []string) {
 									huboErrorParti = false
 									break
 								}
-								_, err = f.Seek(int64(e.Part_next), 0)
-								if err != nil {
-									panic(err)
-								}
-								err = binary.Read(f, binary.LittleEndian, &auxEbr)
-								if err != nil {
-									panic(err)
+								if e.Part_next != -1 {
+									_, err = f.Seek(int64(e.Part_next), 0)
+									if err != nil {
+										panic(err)
+									}
+									err = binary.Read(f, binary.LittleEndian, &auxEbr)
+									if err != nil {
+										panic(err)
+									}
+								} else {
+									break
 								}
 							}
 							cont++
@@ -944,7 +1013,7 @@ func fdisk(tokens []string) {
 								if err != nil {
 									panic(err)
 								}
-								eb.Part_next = eb.Part_start + eb.Part_s
+								eb.Part_next = eb.Part_start + eb.Part_s + int32(unsafe.Sizeof(byte(0)))
 								_, err = f.Seek(int64(startPart+int(unsafe.Sizeof(byte(0)))), 0)
 								if err != nil {
 									panic(err)
@@ -968,7 +1037,7 @@ func fdisk(tokens []string) {
 								e.Part_s = int32(aux)
 								e.Part_status = 0
 								e.Part_fit = byte(fitChar)
-								e.Part_start = eb.Part_start + eb.Part_s
+								e.Part_start = eb.Part_start + eb.Part_s + int32(unsafe.Sizeof(byte(0)))
 								e.Part_next = -1
 								_, err = f.Seek(int64(e.Part_start), 0)
 								if err != nil {
@@ -1146,22 +1215,26 @@ func fdisk(tokens []string) {
 						panic(err)
 					}
 					tamanoUsado := 0
-					for auxEbr != 0 {
+					for auxEbr != '\x00' {
 						var e Ebr
-						if auxEbr == 1 {
+						if auxEbr == '1' {
 							contador++
 							err = binary.Read(f, binary.LittleEndian, &e)
 							if err != nil {
 								panic(err)
 							}
 							tamanoUsado += int(e.Part_s)
-							_, err = f.Seek(int64(e.Part_next), 0)
-							if err != nil {
-								panic(err)
-							}
-							err = binary.Read(f, binary.LittleEndian, &auxEbr)
-							if err != nil {
-								panic(err)
+							if e.Part_next != -1 {
+								_, err = f.Seek(int64(e.Part_next), 0)
+								if err != nil {
+									panic(err)
+								}
+								err = binary.Read(f, binary.LittleEndian, &auxEbr)
+								if err != nil {
+									panic(err)
+								}
+							} else {
+								break
 							}
 						}
 					}
@@ -1178,9 +1251,9 @@ func fdisk(tokens []string) {
 					esMejor := -1
 					valMejor := 2147483647
 					startPart := 0
-					for auxEbr != 0 {
+					for auxEbr != '\x00' {
 						var e Ebr
-						if auxEbr == 1 {
+						if auxEbr == '1' {
 							err = binary.Read(f, binary.LittleEndian, &e)
 							if err != nil {
 								panic(err)
@@ -1192,13 +1265,17 @@ func fdisk(tokens []string) {
 								}
 							}
 							startPart = int(e.Part_start)
-							_, err = f.Seek(int64(e.Part_next), 0)
-							if err != nil {
-								panic(err)
-							}
-							err = binary.Read(f, binary.LittleEndian, &auxEbr)
-							if err != nil {
-								panic(err)
+							if e.Part_next != -1 {
+								_, err = f.Seek(int64(e.Part_next), 0)
+								if err != nil {
+									panic(err)
+								}
+								err = binary.Read(f, binary.LittleEndian, &auxEbr)
+								if err != nil {
+									panic(err)
+								}
+							} else {
+								break
 							}
 						}
 						cont++
@@ -1213,9 +1290,9 @@ func fdisk(tokens []string) {
 						if err != nil {
 							panic(err)
 						}
-						for auxEbr != 0 {
+						for auxEbr != '\x00' {
 							var e Ebr
-							if auxEbr == 1 {
+							if auxEbr == '1' {
 								err = binary.Read(f, binary.LittleEndian, &e)
 								if err != nil {
 									panic(err)
@@ -1248,13 +1325,17 @@ func fdisk(tokens []string) {
 									huboErrorParti = false
 									break
 								}
-								_, err = f.Seek(int64(e.Part_next), 0)
-								if err != nil {
-									panic(err)
-								}
-								err = binary.Read(f, binary.LittleEndian, &auxEbr)
-								if err != nil {
-									panic(err)
+								if e.Part_next != -1 {
+									_, err = f.Seek(int64(e.Part_next), 0)
+									if err != nil {
+										panic(err)
+									}
+									err = binary.Read(f, binary.LittleEndian, &auxEbr)
+									if err != nil {
+										panic(err)
+									}
+								} else {
+									break
 								}
 							}
 							cont++
@@ -1274,8 +1355,8 @@ func fdisk(tokens []string) {
 								if err != nil {
 									panic(err)
 								}
-								eb.Part_next = eb.Part_start + eb.Part_s
-								_, err = f.Seek(-int64(unsafe.Sizeof(eb)), 1)
+								eb.Part_next = eb.Part_start + eb.Part_s + int32(unsafe.Sizeof(byte(0)))
+								_, err = f.Seek(int64(startPart+int(unsafe.Sizeof(byte(0)))), 0)
 								if err != nil {
 									panic(err)
 								}
@@ -1298,7 +1379,7 @@ func fdisk(tokens []string) {
 								e.Part_s = int32(aux)
 								e.Part_status = 0
 								e.Part_fit = byte(fitChar)
-								e.Part_start = eb.Part_start + eb.Part_s
+								e.Part_start = eb.Part_start + eb.Part_s + int32(unsafe.Sizeof(byte(0)))
 								e.Part_next = -1
 								_, err = f.Seek(int64(e.Part_start), 0)
 								if err != nil {
@@ -1403,7 +1484,7 @@ func mount(tokens []string) {
 			for _, mountItem := range mountMap {
 				var mf MountFormat
 				mf = mountItem
-				if mf.Name == name && nameDisco == mf.DiscoName {
+				if strings.ToLower(mf.Name) == strings.ToLower(name) && nameDisco == mf.DiscoName {
 					yaExiste = true
 				}
 			}
@@ -1565,6 +1646,278 @@ func mount(tokens []string) {
 				} else {
 					fmt.Println("No se pudo montar la particion.")
 				}
+			}
+		}
+	}
+}
+
+func mkfs(tokens []string) {
+	typeVal := ""
+	idVal := ""
+	errorVal := false
+	for i := 1; i < len(tokens); i++ {
+		parameter := strings.Split(tokens[i], "=")
+		if parameter[0] == ">id" {
+			idVal = parameter[1]
+		} else if parameter[0] == ">type" {
+			typeVal = parameter[1]
+		} else {
+			fmt.Println("No se reconoce el comando.")
+			errorVal = true
+		}
+	}
+	if idVal == "" {
+		fmt.Println("El id es obligatorio.")
+		errorVal = true
+	}
+	if typeVal == "full" || typeVal == "" {
+	} else {
+		fmt.Println("El tipo debe ser full.")
+		errorVal = true
+	}
+	if errorVal == false {
+		var encontre bool = false
+		var mf MountFormat
+		for idMount, mountItem := range mountMap {
+			if idMount == idVal {
+				mf = mountItem
+				encontre = true
+			}
+		}
+		if encontre == true {
+			f, err := os.OpenFile(mf.Path, os.O_RDWR, 0644)
+			if err != nil {
+				log.Fatal(err)
+			}
+			defer f.Close()
+			var infoEbr Ebr
+			const infoSizeEbr = unsafe.Sizeof(infoEbr)
+			var infoInodo Inodo
+			const infoSizeInodo = unsafe.Sizeof(infoInodo)
+			var infoBloqueArchi BloqueArchivos
+			const infoSizeBloqueArchi = unsafe.Sizeof(infoBloqueArchi)
+			var infoSuperBloque BloqueArchivos
+			const infoSizeSuperBloque = unsafe.Sizeof(infoSuperBloque)
+			if mf.Part_type == 'L' {
+				_, err = f.Seek(int64(mf.Part_start)+int64(infoSizeEbr), 0)
+				if err != nil {
+					log.Fatal(err)
+				}
+				var buff byte = 0
+				for i := 0; i < int(mf.Part_s)-int(infoSizeEbr); i++ {
+					_, err = f.Write([]byte{buff})
+					if err != nil {
+						log.Fatal(err)
+					}
+				}
+				n := int(math.Floor(float64(mf.Part_s)-float64(infoSizeEbr)-float64(infoSizeEbr)) / (4 + float64(infoSizeInodo) + (3 * float64(infoSizeBloqueArchi))))
+				var sb SuperBloque
+				sb.S_filesystem_type = 2
+				sb.S_inodes_count = int32(n)
+				sb.S_blocks_count = int32(3 * n)
+				sb.S_free_blocks_count = int32(3 * n)
+				sb.S_free_inodes_count = int32(n)
+				t := time.Now()
+				tiempo := strconv.Itoa(t.Year()) + "-" + strconv.Itoa(int(t.UTC().Month())) + "-" + strconv.Itoa(t.Day()) + " " + strconv.Itoa(t.Hour()) + ":" + strconv.Itoa(t.Minute())
+				var array [16]byte
+				longitud := len(array)
+				for i := 0; i < longitud; i++ {
+					if i < len(tiempo) {
+						array[i] = tiempo[i]
+					} else {
+						array[i] = ' '
+					}
+				}
+				sb.S_mtime = array
+				sb.S_mnt_count = 1
+				sb.S_magic = 0xEF53
+				sb.S_inode_size = int32(infoSizeInodo)
+				sb.S_block_size = int32(infoSizeBloqueArchi)
+				sb.S_firts_ino = 2
+				sb.S_first_blo = 2
+				sb.S_bm_inode_start = int32(mf.Part_start) + int32(infoSizeEbr) + int32(infoSizeSuperBloque)
+				sb.S_bm_block_start = sb.S_bm_inode_start + int32(n)
+				sb.S_inode_start = sb.S_bm_block_start + int32(3*n)
+				sb.S_block_start = sb.S_inode_start + int32(n)*int32(infoSizeInodo)
+				_, err = f.Seek(int64(mf.Part_start)+int64(infoSizeEbr), 0)
+				if err != nil {
+					log.Fatal(err)
+				}
+				err = binary.Write(f, binary.LittleEndian, &sb)
+				if err != nil {
+					panic(err)
+				}
+
+				mbinodos := make([]byte, n)
+				mbbloques := make([]byte, 3*n)
+				for i := 2; i < n; i++ {
+					mbinodos[i] = '0'
+				}
+				mbinodos[0] = '1'
+				mbinodos[1] = '1'
+				_, err := f.Seek(int64(mf.Part_start)+int64(infoSizeEbr)+int64(infoSizeSuperBloque), 0)
+				if err != nil {
+					panic(err)
+				}
+				err = binary.Write(f, binary.LittleEndian, &mbinodos)
+				if err != nil {
+					panic(err)
+				}
+
+				for i := 2; i < 3*n; i++ {
+					mbbloques[i] = '0'
+				}
+				mbbloques[0] = '1'
+				mbbloques[1] = '1'
+				_, err = f.Seek(int64(mf.Part_start)+int64(infoSizeEbr)+int64(infoSizeSuperBloque)+int64(n), 0)
+				if err != nil {
+					panic(err)
+				}
+
+				err = binary.Write(f, binary.LittleEndian, &mbbloques)
+				if err != nil {
+					panic(err)
+				}
+				var raiz Inodo
+				raiz.I_uid = 1
+				raiz.I_gid = 1
+				raiz.I_size = 0
+				t = time.Now()
+				tiempo = strconv.Itoa(t.Year()) + "-" + strconv.Itoa(int(t.UTC().Month())) + "-" + strconv.Itoa(t.Day()) + " " + strconv.Itoa(t.Hour()) + ":" + strconv.Itoa(t.Minute())
+				longitud = len(array)
+				for i := 0; i < longitud; i++ {
+					if i < len(tiempo) {
+						array[i] = tiempo[i]
+					} else {
+						array[i] = ' '
+					}
+				}
+				raiz.I_atime = array
+				raiz.I_ctime = array
+				raiz.I_mtime = array
+				for i := 0; i < 15; i++ {
+					raiz.I_block[i] = -1
+				}
+				raiz.I_type = '0'
+				raiz.I_perm = 0777
+				raiz.I_block[0] = 0
+				var bcRoot BloqueCarpetas
+				var contenidoR Content
+
+				contenidoR.B_name[0] = '.'
+				contenidoR.B_inodo = 0
+				bcRoot.B_content[0] = contenidoR
+				contenidoR.B_name[0] = '.'
+				contenidoR.B_name[1] = '.'
+				contenidoR.B_inodo = 0
+				bcRoot.B_content[1] = contenidoR
+				contenidoR.B_name[0] = 'u'
+				contenidoR.B_name[1] = 's'
+				contenidoR.B_name[2] = 'e'
+				contenidoR.B_name[3] = 'r'
+				contenidoR.B_name[4] = 's'
+				contenidoR.B_name[5] = '.'
+				contenidoR.B_name[6] = 't'
+				contenidoR.B_name[7] = 'x'
+				contenidoR.B_name[8] = 't'
+				contenidoR.B_inodo = 1
+				bcRoot.B_content[2] = contenidoR
+				var arrayVacio [12]byte
+				contenidoR.B_name = arrayVacio
+				contenidoR.B_inodo = -1
+				bcRoot.B_content[3] = contenidoR
+				var auxsuperbloque SuperBloque
+				_, err = f.Seek(int64(mf.Part_start)+int64(infoSizeEbr), 0)
+				if err != nil {
+					panic(err)
+				}
+				err = binary.Read(f, binary.LittleEndian, &auxsuperbloque)
+				if err != nil {
+					panic(err)
+				}
+				_, err = f.Seek(int64(auxsuperbloque.S_inode_start), 0)
+				if err != nil {
+					panic(err)
+				}
+				err = binary.Write(f, binary.LittleEndian, &raiz)
+				if err != nil {
+					panic(err)
+				}
+				auxsuperbloque.S_free_inodes_count--
+				_, err = f.Seek(int64(auxsuperbloque.S_block_start), 0)
+				if err != nil {
+					panic(err)
+				}
+				err = binary.Write(f, binary.LittleEndian, &bcRoot)
+				if err != nil {
+					panic(err)
+				}
+				auxsuperbloque.S_free_blocks_count--
+
+				archivoUsers := "1,G,root\n1,U,root,root,123\n"
+				var archivousuarios Inodo
+				archivousuarios.I_gid = 1
+				archivousuarios.I_size = int32(len(archivoUsers))
+				archivousuarios.I_uid = 1
+				t = time.Now()
+				tiempo = strconv.Itoa(t.Year()) + "-" + strconv.Itoa(int(t.UTC().Month())) + "-" + strconv.Itoa(t.Day()) + " " + strconv.Itoa(t.Hour()) + ":" + strconv.Itoa(t.Minute())
+				longitud = len(array)
+				for i := 0; i < longitud; i++ {
+					if i < len(tiempo) {
+						array[i] = tiempo[i]
+					} else {
+						array[i] = '\x00'
+					}
+				}
+				archivousuarios.I_atime = array
+				archivousuarios.I_ctime = array
+				archivousuarios.I_mtime = array
+				for i := 0; i < 16; i++ {
+					archivousuarios.I_block[i] = -1
+				}
+				archivousuarios.I_block[0] = 1
+				archivousuarios.I_type = '1'
+				archivousuarios.I_perm = 0664
+				var bloquearchivos BloqueArchivos
+				var arrayContent [64]byte
+				longitud = len(arrayContent)
+				for i := 0; i < longitud; i++ {
+					if i < len(archivoUsers) {
+						arrayContent[i] = archivoUsers[i]
+					} else {
+						arrayContent[i] = '\x00'
+					}
+				}
+				bloquearchivos.B_content = arrayContent
+				f, _ := os.OpenFile(mf.Path, os.O_WRONLY, 0644)
+				defer f.Close()
+				_, err = f.Seek(int64(auxsuperbloque.S_inode_start)+int64(infoSizeInodo), 0)
+				if err != nil {
+					panic(err)
+				}
+				err = binary.Write(f, binary.LittleEndian, &archivousuarios)
+				if err != nil {
+					panic(err)
+				}
+				auxsuperbloque.S_free_inodes_count--
+				_, err = f.Seek(int64(auxsuperbloque.S_block_start)+int64(infoSizeBloqueArchi), 0)
+				if err != nil {
+					panic(err)
+				}
+				err = binary.Write(f, binary.LittleEndian, &bloquearchivos)
+				if err != nil {
+					panic(err)
+				}
+				auxsuperbloque.S_free_blocks_count--
+				_, err = f.Seek(int64(mf.Part_start)+int64(infoSizeEbr), 0)
+				if err != nil {
+					panic(err)
+				}
+				err = binary.Write(f, binary.LittleEndian, &auxsuperbloque)
+				if err != nil {
+					panic(err)
+				}
+				fmt.Println("Particion formateada con exito.")
 			}
 		}
 	}

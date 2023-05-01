@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
@@ -20,6 +19,11 @@ import (
 //----------------------------STRUCTS-----------------------------
 type task struct {
 	Consola string `json:"Consola"`
+}
+
+type Retorno struct {
+	Consola string `json:"consola"`
+	Reporte string `json:"reporte"`
 }
 
 type Particion struct {
@@ -108,84 +112,74 @@ type BloqueArchivos struct {
 }
 
 var mountMap = make(map[string]MountFormat)
+var consola = ""
+var reporte = ""
 
 func separarPorEspacios(instruccion string) {
 	insChar := []byte(instruccion)
-	var tokens []string
-	if insChar[0] == '#' {
-		fmt.Println("Se encontro un comentario.")
-	} else {
-		encontreComi := 0
-		var token string
-		for i := 0; i < len(instruccion)+1; i++ {
-			if encontreComi == 1 {
-				if insChar[i] == '"' {
-					encontreComi = 0
-					if i == len(instruccion) {
-						tokens = append(tokens, token)
-						token = ""
+	if len(insChar) > 0 {
+		var tokens []string
+		if insChar[0] == '#' {
+			fmt.Println("Se encontro un comentario.")
+		} else {
+			encontreComi := 0
+			var token string
+			for i := 0; i < len(instruccion)+1; i++ {
+				if encontreComi == 1 {
+					if insChar[i] == '"' {
+						encontreComi = 0
+						if i == len(instruccion) {
+							tokens = append(tokens, token)
+							token = ""
+						}
+					} else {
+						token += string(insChar[i])
 					}
-				} else {
-					token += string(insChar[i])
-				}
-			} else if i == len(instruccion) {
-				tokens = append(tokens, token)
-				token = ""
-			} else {
-				if insChar[i] == ' ' {
+				} else if i == len(instruccion) {
 					tokens = append(tokens, token)
 					token = ""
-				} else if insChar[i] == '"' {
-					encontreComi++
 				} else {
-					token += string(insChar[i])
+					if insChar[i] == ' ' {
+						tokens = append(tokens, token)
+						token = ""
+					} else if insChar[i] == '"' {
+						encontreComi++
+					} else {
+						token += string(insChar[i])
+					}
 				}
 			}
 		}
-	}
 
-	if tokens[0] == "execute" {
-		exec(tokens)
-	} else if tokens[0] == "mkdisk" {
-		mkdisk(tokens)
-	} else if tokens[0] == "rmdisk" {
-		rmdisk(tokens)
-	} else if tokens[0] == "fdisk" {
-		fdisk(tokens)
-	} else if tokens[0] == "mount" {
-		mount(tokens)
-	} else if tokens[0] == "mkfs" {
-		mkfs(tokens)
-	} else {
-		fmt.Println("No se reconoce el comando a ejecutar.")
+		if len(tokens) > 0 {
+
+			if tokens[0] == "mkdisk" {
+				mkdisk(tokens)
+			} else if tokens[0] == "rmdisk" {
+				rmdisk(tokens)
+			} else if tokens[0] == "fdisk" {
+				fdisk(tokens)
+			} else if tokens[0] == "mount" {
+				mount(tokens)
+			} else if tokens[0] == "mkfs" {
+				mkfs(tokens)
+			} else if tokens[0] == "rep" {
+				rep(tokens)
+			} else {
+				fmt.Println("No se reconoce el comando a ejecutar.")
+				addConsola("No se reconoce el comando a ejecutar.")
+			}
+		}
+
 	}
 }
 
-func exec(tokens []string) {
-	var execIns []string
-	ss := strings.NewReader(tokens[1])
-	scanner := bufio.NewScanner(ss)
-	scanner.Split(bufio.ScanWords)
-	for scanner.Scan() {
-		execIns = append(execIns, scanner.Text())
-	}
-	nombreArchivo := execIns[1]
-	archivo, err := os.Open(nombreArchivo)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer archivo.Close()
-	var instruccionesExec []string
-	scanner = bufio.NewScanner(archivo)
-	for scanner.Scan() {
-		linea := scanner.Text()
-		if linea != "" {
-			instruccionesExec = append(instruccionesExec, linea)
+func exec(comandos string) {
+	comandosArreglo := strings.Split(comandos, "\n")
+	for i := 0; i < len(comandosArreglo); i++ {
+		if comandosArreglo[i] != "" {
+			separarPorEspacios(comandosArreglo[i])
 		}
-	}
-	for _, token := range instruccionesExec {
-		tokenAux := strings.ToLower(token)
-		separarPorEspacios(tokenAux)
 	}
 }
 
@@ -205,6 +199,7 @@ func mkdisk(tokens []string) {
 			size, _ = strconv.Atoi(parameter[1])
 			if size <= 0 {
 				fmt.Println("El size del disco debe ser mayor a 0.")
+				addConsola("El size del disco debe ser mayor a 0.")
 				error = true
 			}
 		} else if parameter[0] == ">unit" {
@@ -215,11 +210,13 @@ func mkdisk(tokens []string) {
 			fit = strings.ToLower(parameter[1])
 		} else {
 			fmt.Println("No se reconoce el comando.")
+			addConsola("No se reconoce el comando.")
 			error = true
 		}
 	}
 	if size <= 0 || path == "" {
 		fmt.Println("El tamaño y el path son obligatorios.")
+		addConsola("El tamaño y el path son obligatorios.")
 		error = true
 	}
 	buffer := make([]byte, 1024)
@@ -237,6 +234,7 @@ func mkdisk(tokens []string) {
 		unit = "m"
 	} else {
 		fmt.Println("La unidades no son validas.")
+		addConsola("La unidades no son validas.")
 		error = true
 	}
 	if fit == "bf" {
@@ -249,6 +247,7 @@ func mkdisk(tokens []string) {
 		fitD = 'F'
 	} else {
 		fmt.Println("El tipo de fit no es valido.")
+		addConsola("El tipo de fit no es valido.")
 		error = true
 	}
 
@@ -303,6 +302,7 @@ func mkdisk(tokens []string) {
 		}
 		defer f.Close()
 		fmt.Println("Se creo el disco con exito.")
+		addConsola("Se creo el disco con exito.")
 	}
 }
 
@@ -319,11 +319,13 @@ func rmdisk(tokens []string) {
 			path = parameter[1]
 		} else {
 			fmt.Println("No se reconoce el comando.")
+			addConsola("No se reconoce el comando.")
 			error = true
 		}
 	}
 	if path == "" {
 		fmt.Println("El path es obligatorio para realizar el rmdisk.")
+		addConsola("El path es obligatorio para realizar el rmdisk.")
 		error = true
 	}
 	if error == false {
@@ -334,9 +336,11 @@ func rmdisk(tokens []string) {
 				fmt.Println("Error al borrar archivo!.")
 			} else {
 				fmt.Println("El archivo se borro con exito!")
+				addConsola("El archivo se borro con exito!")
 			}
 		} else {
 			fmt.Println("El archivo con el path: ", path, ", no existe.")
+			addConsola("El archivo con el path: " + path + ", no existe.")
 		}
 	}
 }
@@ -356,6 +360,7 @@ func fdisk(tokens []string) {
 			size, _ = strconv.Atoi(parameter[1])
 			if size <= 0 {
 				fmt.Println("El size de la particion debe ser mayor a 0.")
+				addConsola("El size de la particion debe ser mayor a 0.")
 				errorVal = true
 			}
 		} else if parameter[0] == ">unit" {
@@ -370,12 +375,14 @@ func fdisk(tokens []string) {
 			fit = strings.ToLower(parameter[1])
 		} else {
 			fmt.Println("No se reconoce el comando.")
+			addConsola("No se reconoce el comando.")
 			errorVal = true
 		}
 	}
 
 	if size <= 0 || path == "" || name == "" {
 		fmt.Println("El size, el path y el nombre son obligatorios.")
+		addConsola("El size, el path y el nombre son obligatorios.")
 		errorVal = true
 	}
 	aux := 0
@@ -390,6 +397,7 @@ func fdisk(tokens []string) {
 		unit = "k"
 	} else {
 		fmt.Println("La unidades no son validas.")
+		addConsola("La unidades no son validas.")
 		errorVal = true
 	}
 
@@ -406,6 +414,7 @@ func fdisk(tokens []string) {
 		tipoChar = 'P'
 	} else {
 		fmt.Println("El tipo de particion no es valido.")
+		addConsola("El tipo de particion no es valido.")
 		errorVal = true
 	}
 	fitChar := ' '
@@ -420,6 +429,7 @@ func fdisk(tokens []string) {
 		fitChar = 'W'
 	} else {
 		fmt.Println("El tipo de particion no es valido.")
+		addConsola("El tipo de particion no es valido.")
 		errorVal = true
 	}
 
@@ -463,10 +473,12 @@ func fdisk(tokens []string) {
 			}
 		}
 
-		if typeVal == "e" && hayExtendida == true {
+		if strings.ToLower(typeVal) == "e" && hayExtendida == true {
 			fmt.Println("No se puede crear mas de una particion extendida.")
+			addConsola("No se puede crear mas de una particion extendida.")
 		} else if typeVal == "l" && hayExtendida == false {
 			fmt.Println("No se puede crear una particion logica si no hay una extendida.")
+			addConsola("No se puede crear una particion logica si no hay una extendida.")
 		} else {
 			hayEspacio := false
 			for i := 0; i < 4; i++ {
@@ -485,6 +497,7 @@ func fdisk(tokens []string) {
 
 			if hayEspacio == false && tipoChar != 'L' {
 				fmt.Println("Se han creado el maximo de particiones permitidas.")
+				addConsola("Se han creado el maximo de particiones permitidas.")
 				return
 			} else {
 				if fitMbr == 'F' && tipoChar != 'L' {
@@ -515,6 +528,7 @@ func fdisk(tokens []string) {
 										f.Seek(0, 0)
 										binary.Write(f, binary.LittleEndian, &m)
 										fmt.Println("Se creo la particion con exito.")
+										addConsola("Se creo la particion con exito.")
 										huboErrorParti = false
 										break
 									} else {
@@ -543,6 +557,7 @@ func fdisk(tokens []string) {
 										f.Seek(0, 0)
 										binary.Write(f, binary.LittleEndian, &m)
 										fmt.Println("Se creo la particion con exito.")
+										addConsola("Se creo la particion con exito.")
 										huboErrorParti = false
 										break
 									} else {
@@ -571,6 +586,7 @@ func fdisk(tokens []string) {
 									f.Seek(0, 0)
 									binary.Write(f, binary.LittleEndian, &m)
 									fmt.Println("Se creo la particion con exito.")
+									addConsola("Se creo la particion con exito.")
 									huboErrorParti = false
 									break
 								} else {
@@ -658,6 +674,7 @@ func fdisk(tokens []string) {
 									}
 									noPuedoAgregar = false
 									fmt.Println("Se creo la particion con exito.")
+									addConsola("Se creo la particion con exito.")
 									huboErrorParti = false
 									break
 								}
@@ -723,9 +740,11 @@ func fdisk(tokens []string) {
 									panic(err)
 								}
 								fmt.Println("Se creo la particion con exito.")
+								addConsola("Se creo la particion con exito.")
 								huboErrorParti = false
 							} else {
 								fmt.Println("No hay espacio en la particion extendida para crear la particion logica.")
+								addConsola("No hay espacio en la particion extendida para crear la particion logica.")
 								huboErrorParti = true
 							}
 						} else {
@@ -752,9 +771,11 @@ func fdisk(tokens []string) {
 									panic(err)
 								}
 								fmt.Println("Se creo la particion con exito.")
+								addConsola("Se creo la particion con exito.")
 								huboErrorParti = false
 							} else {
 								fmt.Println("No hay espacio en la particion extendida para crear la particion logica.")
+								addConsola("No hay espacio en la particion extendida para crear la particion logica.")
 								huboErrorParti = true
 							}
 						}
@@ -792,6 +813,7 @@ func fdisk(tokens []string) {
 								f.Seek(0, 0)
 								binary.Write(f, binary.LittleEndian, &m)
 								fmt.Println("Se creo la particion con exito.")
+								addConsola("Se creo la particion con exito.")
 								huboErrorParti = false
 								break
 							}
@@ -823,6 +845,7 @@ func fdisk(tokens []string) {
 										f.Seek(0, 0)
 										binary.Write(f, binary.LittleEndian, &m)
 										fmt.Println("Se creo la particion con exito.")
+										addConsola("Se creo la particion con exito.")
 										huboErrorParti = false
 										break
 									} else {
@@ -851,6 +874,7 @@ func fdisk(tokens []string) {
 										f.Seek(0, 0)
 										binary.Write(f, binary.LittleEndian, &m)
 										fmt.Println("Se creo la particion con exito.")
+										addConsola("Se creo la particion con exito.")
 										huboErrorParti = false
 										break
 									} else {
@@ -980,6 +1004,7 @@ func fdisk(tokens []string) {
 									}
 									noPuedoAgregar = false
 									fmt.Println("Se creo la particion con exito.")
+									addConsola("Se creo la particion con exito.")
 									huboErrorParti = false
 									break
 								}
@@ -1052,9 +1077,11 @@ func fdisk(tokens []string) {
 									panic(err)
 								}
 								fmt.Println("Se creo la particion con exito.")
+								addConsola("Se creo la particion con exito.")
 								huboErrorParti = false
 							} else {
 								fmt.Println("No hay espacio en la particion extendida para crear la particion logica.")
+								addConsola("No hay espacio en la particion extendida para crear la particion logica.")
 								huboErrorParti = true
 							}
 						} else {
@@ -1090,9 +1117,11 @@ func fdisk(tokens []string) {
 									panic(err)
 								}
 								fmt.Println("Se creo la particion con exito.")
+								addConsola("Se creo la particion con exito.")
 								huboErrorParti = false
 							} else {
 								fmt.Println("No hay espacio en la particion extendida para crear la particion logica.")
+								addConsola("No hay espacio en la particion extendida para crear la particion logica.")
 								huboErrorParti = true
 							}
 						}
@@ -1132,6 +1161,7 @@ func fdisk(tokens []string) {
 								f.Seek(0, 0)
 								binary.Write(f, binary.LittleEndian, &m)
 								fmt.Println("Se creo la particion con exito.")
+								addConsola("Se creo la particion con exito.")
 								huboErrorParti = false
 								break
 							}
@@ -1163,6 +1193,7 @@ func fdisk(tokens []string) {
 										f.Seek(0, 0)
 										binary.Write(f, binary.LittleEndian, &m)
 										fmt.Println("Se creo la particion con exito.")
+										addConsola("Se creo la particion con exito.")
 										huboErrorParti = false
 										break
 									} else {
@@ -1192,6 +1223,7 @@ func fdisk(tokens []string) {
 										f.Seek(0, 0)
 										binary.Write(f, binary.LittleEndian, &m)
 										fmt.Println("Se creo la particion con exito.")
+										addConsola("Se creo la particion con exito.")
 										huboErrorParti = false
 										break
 									} else {
@@ -1322,6 +1354,7 @@ func fdisk(tokens []string) {
 									}
 									noPuedoAgregar = false
 									fmt.Println("Se creo la particion con exito.")
+									addConsola("Se creo la particion con exito.")
 									huboErrorParti = false
 									break
 								}
@@ -1394,9 +1427,11 @@ func fdisk(tokens []string) {
 									panic(err)
 								}
 								fmt.Println("Se creo la particion con exito.")
+								addConsola("Se creo la particion con exito.")
 								huboErrorParti = false
 							} else {
 								fmt.Println("No hay espacio en la particion extendida para crear la particion logica.")
+								addConsola("No hay espacio en la particion extendida para crear la particion logica.")
 								huboErrorParti = true
 							}
 						} else {
@@ -1432,9 +1467,11 @@ func fdisk(tokens []string) {
 									panic(err)
 								}
 								fmt.Println("Se creo la particion con exito.")
+								addConsola("Se creo la particion con exito.")
 								huboErrorParti = false
 							} else {
 								fmt.Println("No hay espacio en la particion extendida para crear la particion logica.")
+								addConsola("No hay espacio en la particion extendida para crear la particion logica.")
 								huboErrorParti = true
 							}
 						}
@@ -1444,6 +1481,8 @@ func fdisk(tokens []string) {
 
 				if huboErrorParti == true {
 					fmt.Println("No se pudo realizar la particion.")
+					addConsola("No se pudo realizar la particion.")
+
 				}
 			}
 		}
@@ -1462,11 +1501,13 @@ func mount(tokens []string) {
 			path = parameter[1]
 		} else {
 			fmt.Println("No se reconoce el comando.")
+			addConsola("No se reconoce el comando.")
 			errorVal = true
 		}
 	}
 	if name == "" || path == "" {
 		fmt.Println("El nombre y el path son obligatorios.")
+		addConsola("El nombre y el path son obligatorios.")
 		errorVal = true
 	}
 	if errorVal == false {
@@ -1534,6 +1575,7 @@ func mount(tokens []string) {
 					if m.Particiones[i].Part_name == arrayName {
 						if m.Particiones[i].Part_type == 'E' {
 							fmt.Println("No se puede montar una particion extendida.")
+							addConsola("No se puede montar una particion extendida.")
 						} else {
 							m.Particiones[i].Part_status = 1
 							part_fit = m.Particiones[i].Part_fit
@@ -1595,6 +1637,7 @@ func mount(tokens []string) {
 				}
 				if encontre == false {
 					fmt.Println("La particion con el nombre: " + name + ", no existe.")
+					addConsola("La particion con el nombre: " + name + ", no existe.")
 				}
 
 				if encontre == true {
@@ -1640,11 +1683,15 @@ func mount(tokens []string) {
 					}
 					mountMap[nameMount] = mountF
 					fmt.Println("Se monto la particion con exito.")
+					addConsola("Se monto la particion con exito.")
 					for _, entry := range mountMap {
 						fmt.Printf("{%d, %s, %s}\n", entry.Id, entry.Name, entry.IdMount)
+						parteConsola := "{" + fmt.Sprint(entry.Id) + ", " + entry.Name + ", " + string(entry.IdMount) + "}"
+						addConsola(parteConsola)
 					}
 				} else {
 					fmt.Println("No se pudo montar la particion.")
+					addConsola("No se pudo montar la particion.")
 				}
 			}
 		}
@@ -1663,6 +1710,7 @@ func mkfs(tokens []string) {
 			typeVal = parameter[1]
 		} else {
 			fmt.Println("No se reconoce el comando.")
+			addConsola("No se reconoce el comando.")
 			errorVal = true
 		}
 	}
@@ -1673,6 +1721,7 @@ func mkfs(tokens []string) {
 	if typeVal == "full" || typeVal == "" {
 	} else {
 		fmt.Println("El tipo debe ser full.")
+		addConsola("El tipo debe ser full.")
 		errorVal = true
 	}
 	if errorVal == false {
@@ -1710,7 +1759,7 @@ func mkfs(tokens []string) {
 						log.Fatal(err)
 					}
 				}
-				n := int(math.Floor(float64(mf.Part_s)-float64(infoSizeEbr)-float64(infoSizeEbr)) / (4 + float64(infoSizeInodo) + (3 * float64(infoSizeBloqueArchi))))
+				n := int(math.Floor(float64(mf.Part_s) - float64(infoSizeEbr) - float64(infoSizeSuperBloque)/(4+float64(infoSizeInodo)+(3*float64(infoSizeBloqueArchi)))))
 				var sb SuperBloque
 				sb.S_filesystem_type = 2
 				sb.S_inodes_count = int32(n)
@@ -1799,7 +1848,7 @@ func mkfs(tokens []string) {
 					raiz.I_block[i] = -1
 				}
 				raiz.I_type = '0'
-				raiz.I_perm = 0777
+				raiz.I_perm = 777
 				raiz.I_block[0] = 0
 				var bcRoot BloqueCarpetas
 				var contenidoR Content
@@ -1918,8 +1967,435 @@ func mkfs(tokens []string) {
 					panic(err)
 				}
 				fmt.Println("Particion formateada con exito.")
+				addConsola("Particion formateada con exito.")
+			} else if mf.Part_type == 'P' {
+				f.Seek(int64(mf.Part_start), 0)
+				var buff byte = 0
+				for i := 0; i < mf.Part_s; i++ {
+					f.Write([]byte{buff})
+				}
+				n := int(math.Floor(float64(mf.Part_s) - float64(infoSizeSuperBloque)/(4+float64(infoSizeInodo)+(3*float64(infoSizeBloqueArchi)))))
+				var sb SuperBloque
+				sb.S_filesystem_type = 2
+				sb.S_inodes_count = int32(n)
+				sb.S_blocks_count = int32(3 * n)
+				sb.S_free_blocks_count = int32(3 * n)
+				sb.S_free_inodes_count = int32(n)
+				t := time.Now()
+				tiempo := strconv.Itoa(t.Year()) + "-" + strconv.Itoa(int(t.UTC().Month())) + "-" + strconv.Itoa(t.Day()) + " " + strconv.Itoa(t.Hour()) + ":" + strconv.Itoa(t.Minute())
+				var array [16]byte
+				longitud := len(array)
+				for i := 0; i < longitud; i++ {
+					if i < len(tiempo) {
+						array[i] = tiempo[i]
+					} else {
+						array[i] = ' '
+					}
+				}
+				sb.S_mtime = array
+				sb.S_mnt_count = 1
+				sb.S_magic = 0xEF53
+				sb.S_inode_size = int32(infoSizeInodo)
+				sb.S_block_size = int32(infoSizeBloqueArchi)
+				sb.S_firts_ino = 2
+				sb.S_first_blo = 2
+				sb.S_bm_inode_start = int32(mf.Part_start) + int32(infoSizeSuperBloque)
+				sb.S_bm_block_start = sb.S_bm_inode_start + int32(n)
+				sb.S_inode_start = sb.S_bm_block_start + int32(3*n)
+				sb.S_block_start = sb.S_inode_start + int32(n)*int32(infoSizeInodo)
+				f.Seek(int64(mf.Part_start), 0)
+				binary.Write(f, binary.LittleEndian, &sb)
+
+				mbinodos := make([]byte, n)
+				mbbloques := make([]byte, 3*n)
+				for i := 2; i < n; i++ {
+					mbinodos[i] = '0'
+				}
+				mbinodos[0] = '1'
+				mbinodos[1] = '1'
+				_, err := f.Seek(int64(mf.Part_start)+int64(infoSizeSuperBloque), 0)
+				if err != nil {
+					panic(err)
+				}
+				err = binary.Write(f, binary.LittleEndian, &mbinodos)
+				if err != nil {
+					panic(err)
+				}
+
+				for i := 2; i < 3*n; i++ {
+					mbbloques[i] = '0'
+				}
+				mbbloques[0] = '1'
+				mbbloques[1] = '1'
+				_, err = f.Seek(int64(mf.Part_start)+int64(infoSizeSuperBloque)+int64(n), 0)
+				if err != nil {
+					panic(err)
+				}
+
+				err = binary.Write(f, binary.LittleEndian, &mbbloques)
+				if err != nil {
+					panic(err)
+				}
+				var raiz Inodo
+				raiz.I_uid = 1
+				raiz.I_gid = 1
+				raiz.I_size = 0
+				t = time.Now()
+				tiempo = strconv.Itoa(t.Year()) + "-" + strconv.Itoa(int(t.UTC().Month())) + "-" + strconv.Itoa(t.Day()) + " " + strconv.Itoa(t.Hour()) + ":" + strconv.Itoa(t.Minute())
+				longitud = len(array)
+				for i := 0; i < longitud; i++ {
+					if i < len(tiempo) {
+						array[i] = tiempo[i]
+					} else {
+						array[i] = ' '
+					}
+				}
+				raiz.I_atime = array
+				raiz.I_ctime = array
+				raiz.I_mtime = array
+				for i := 0; i < 15; i++ {
+					raiz.I_block[i] = -1
+				}
+				raiz.I_type = '0'
+				raiz.I_perm = 777
+				raiz.I_block[0] = 0
+				var bcRoot BloqueCarpetas
+				var contenidoR Content
+
+				contenidoR.B_name[0] = '.'
+				contenidoR.B_inodo = 0
+				bcRoot.B_content[0] = contenidoR
+				contenidoR.B_name[0] = '.'
+				contenidoR.B_name[1] = '.'
+				contenidoR.B_inodo = 0
+				bcRoot.B_content[1] = contenidoR
+				contenidoR.B_name[0] = 'u'
+				contenidoR.B_name[1] = 's'
+				contenidoR.B_name[2] = 'e'
+				contenidoR.B_name[3] = 'r'
+				contenidoR.B_name[4] = 's'
+				contenidoR.B_name[5] = '.'
+				contenidoR.B_name[6] = 't'
+				contenidoR.B_name[7] = 'x'
+				contenidoR.B_name[8] = 't'
+				contenidoR.B_inodo = 1
+				bcRoot.B_content[2] = contenidoR
+				var arrayVacio [12]byte
+				contenidoR.B_name = arrayVacio
+				contenidoR.B_inodo = -1
+				bcRoot.B_content[3] = contenidoR
+				var auxsuperbloque SuperBloque
+				_, err = f.Seek(int64(mf.Part_start), 0)
+				if err != nil {
+					panic(err)
+				}
+				err = binary.Read(f, binary.LittleEndian, &auxsuperbloque)
+				if err != nil {
+					panic(err)
+				}
+				_, err = f.Seek(int64(auxsuperbloque.S_inode_start), 0)
+				if err != nil {
+					panic(err)
+				}
+				err = binary.Write(f, binary.LittleEndian, &raiz)
+				if err != nil {
+					panic(err)
+				}
+				auxsuperbloque.S_free_inodes_count--
+				_, err = f.Seek(int64(auxsuperbloque.S_block_start), 0)
+				if err != nil {
+					panic(err)
+				}
+				err = binary.Write(f, binary.LittleEndian, &bcRoot)
+				if err != nil {
+					panic(err)
+				}
+				auxsuperbloque.S_free_blocks_count--
+
+				archivoUsers := "1,G,root\n1,U,root,root,123\n"
+				var archivousuarios Inodo
+				archivousuarios.I_gid = 1
+				archivousuarios.I_size = int32(len(archivoUsers))
+				archivousuarios.I_uid = 1
+				t = time.Now()
+				tiempo = strconv.Itoa(t.Year()) + "-" + strconv.Itoa(int(t.UTC().Month())) + "-" + strconv.Itoa(t.Day()) + " " + strconv.Itoa(t.Hour()) + ":" + strconv.Itoa(t.Minute())
+				longitud = len(array)
+				for i := 0; i < longitud; i++ {
+					if i < len(tiempo) {
+						array[i] = tiempo[i]
+					} else {
+						array[i] = '\x00'
+					}
+				}
+				archivousuarios.I_atime = array
+				archivousuarios.I_ctime = array
+				archivousuarios.I_mtime = array
+				for i := 0; i < 16; i++ {
+					archivousuarios.I_block[i] = -1
+				}
+				archivousuarios.I_block[0] = 1
+				archivousuarios.I_type = '1'
+				archivousuarios.I_perm = 0664
+				var bloquearchivos BloqueArchivos
+				var arrayContent [64]byte
+				longitud = len(arrayContent)
+				for i := 0; i < longitud; i++ {
+					if i < len(archivoUsers) {
+						arrayContent[i] = archivoUsers[i]
+					} else {
+						arrayContent[i] = '\x00'
+					}
+				}
+				bloquearchivos.B_content = arrayContent
+				f, _ := os.OpenFile(mf.Path, os.O_WRONLY, 0644)
+				defer f.Close()
+				_, err = f.Seek(int64(auxsuperbloque.S_inode_start)+int64(infoSizeInodo), 0)
+				if err != nil {
+					panic(err)
+				}
+				err = binary.Write(f, binary.LittleEndian, &archivousuarios)
+				if err != nil {
+					panic(err)
+				}
+				auxsuperbloque.S_free_inodes_count--
+				_, err = f.Seek(int64(auxsuperbloque.S_block_start)+int64(infoSizeBloqueArchi), 0)
+				if err != nil {
+					panic(err)
+				}
+				err = binary.Write(f, binary.LittleEndian, &bloquearchivos)
+				if err != nil {
+					panic(err)
+				}
+				auxsuperbloque.S_free_blocks_count--
+				_, err = f.Seek(int64(mf.Part_start), 0)
+				if err != nil {
+					panic(err)
+				}
+				err = binary.Write(f, binary.LittleEndian, &auxsuperbloque)
+				if err != nil {
+					panic(err)
+				}
+				fmt.Println("Particion formateada con exito.")
+				addConsola("Particion formateada con exito.")
 			}
 		}
+	}
+}
+
+func rep(tokens []string) {
+	name := ""
+	path := ""
+	id := ""
+	error := false
+	for i := 1; i < len(tokens); i++ {
+		parameter := make([]string, 0)
+		sp := strings.Split(tokens[i], "=")
+		for _, tokenPar := range sp {
+			parameter = append(parameter, tokenPar)
+		}
+		if strings.ToLower(parameter[0]) == ">name" {
+			name = parameter[1]
+		} else if strings.ToLower(parameter[0]) == ">path" {
+			path = parameter[1]
+		} else if strings.ToLower(parameter[0]) == ">id" {
+			id = parameter[1]
+		} else {
+			fmt.Println("No se reconoce el comando.")
+			error = true
+		}
+	}
+	if name == "" || path == "" || id == "" {
+		fmt.Println("El nombre, el id y el path son obligatorios.")
+		error = true
+	}
+	if error == false {
+		switch name {
+		case "disk":
+			diskRep(path, id)
+		case "sb":
+			//superBloqueRep(path, id)
+		}
+	}
+}
+
+func diskRep(path string, id string) {
+	encontre := false
+	var mf MountFormat
+	for idMount, mountItem := range mountMap {
+		if idMount == id {
+			mf = mountItem
+			encontre = true
+		}
+	}
+	if encontre == true {
+		f, err := os.OpenFile(mf.Path, os.O_RDWR, 0644)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer f.Close()
+		var m Mbr
+		_, err = f.Seek(0, 0)
+		if err != nil {
+			log.Fatal(err)
+		}
+		err = binary.Read(f, binary.LittleEndian, &m)
+		if err != nil {
+			log.Fatal(err)
+		}
+		archivoGrafica := "digraph G { \nnode [fontname=\"Comic Sans MS\"];"
+		archivoGrafica += "label=\"" + mf.DiscoName + "\";"
+		archivoGrafica += "tbl [\n"
+		archivoGrafica += "    shape=plaintext\n"
+		archivoGrafica += "    label=<\n"
+		archivoGrafica += "      <table border='1' cellborder='1' color='blue' cellspacing='2' cellpadding=\"2\">"
+		archivoGrafica += "\n<tr>"
+		archivoGrafica += "\n<td rowspan ='2'>MBR</td>"
+		extraExte := ""
+
+		for i := 0; i < 4; i++ {
+			if m.Particiones[i].Part_s != 0 && m.Particiones[i].Part_name[0] != '\x00' {
+				if m.Particiones[i].Part_type == 'E' {
+					numBloq := 0
+					extraExte += "\n<tr>"
+					var auxEbr byte
+					f.Seek(int64(m.Particiones[i].Part_start), 0)
+					err = binary.Read(f, binary.LittleEndian, &auxEbr)
+					//err = binary.Write(f, binary.LittleEndian, &m)
+					if err != nil {
+						log.Panic(err)
+					}
+					for auxEbr != '\x00' {
+						var e Ebr
+						if auxEbr == '1' {
+							err = binary.Read(f, binary.LittleEndian, &e)
+							if err != nil {
+								log.Panic(err)
+							}
+							if e.Part_name[0] == '\x00' {
+								porcentajeDisco := (float64(e.Part_s) * 100) / float64(m.Mbr_tamano)
+								extraExte += "<td>Libre <br></br>" + strconv.FormatFloat(float64(porcentajeDisco), 'f', -1, 32) + "% del disco</td>"
+								numBloq++
+							} else {
+								if e.Part_s+e.Part_start == e.Part_next {
+									str := string(e.Part_name[:])
+									porcentajeDisco := (float64(e.Part_s) * 100) / float64(m.Mbr_tamano)
+									extraExte += "<td>EBR</td>"
+									numBloq++
+									extraExte += "<td>" + str + "(L)<br></br>" + strconv.FormatFloat(float64(porcentajeDisco), 'f', -1, 32) + "% del disco</td>"
+									numBloq++
+								} else {
+									if e.Part_next == -1 {
+										str := string(e.Part_name[:])
+										porcentajeDisco := (float64(e.Part_s) * 100) / float64(m.Mbr_tamano)
+										extraExte += "<td>EBR</td>"
+										numBloq++
+										extraExte += "<td>" + str + "(L)<br></br>" + strconv.FormatFloat(float64(porcentajeDisco), 'f', -1, 32) + "% del disco</td>"
+										numBloq++
+										if e.Part_s+e.Part_start < m.Particiones[i].Part_s+m.Particiones[i].Part_start {
+											porDisco := (float64((m.Particiones[i].Part_s+m.Particiones[i].Part_start)-(e.Part_s+e.Part_start)) * 100) / float64(m.Mbr_tamano)
+											extraExte += "<td>Libre <br></br>" + strconv.FormatFloat(float64(porDisco), 'f', -1, 32) + "% del disco</td>"
+											numBloq++
+										}
+									} else {
+										str := string(e.Part_name[:])
+										porcentajeDisco := (float64(e.Part_s) * 100) / float64(m.Mbr_tamano)
+										extraExte += "<td>EBR</td>"
+										numBloq++
+										extraExte += "<td>" + str + "(L)<br></br>" + strconv.FormatFloat(float64(porcentajeDisco), 'f', 2, 32) + "% del disco</td>"
+										numBloq++
+										porDisco := (float64(e.Part_next-(e.Part_s+e.Part_start)) * 100) / float64(m.Mbr_tamano)
+										extraExte += "<td>Libre <br></br>" + strconv.FormatFloat(float64(porDisco), 'f', 2, 32) + "% del disco</td>"
+										numBloq++
+									}
+
+									if e.Part_next != -1 {
+										_, err = f.Seek(int64(e.Part_next), 0)
+										if err != nil {
+											panic(err)
+										}
+										err = binary.Read(f, binary.LittleEndian, &auxEbr)
+										if err != nil {
+											panic(err)
+										}
+									} else {
+										break
+									}
+								}
+								extraExte += "</tr>"
+								archivoGrafica += "<td colspan ='" + strconv.Itoa(numBloq) + "'>Extendida</td>"
+							}
+						}
+					}
+				} else {
+					if i == 3 {
+						if m.Particiones[i].Part_s+m.Particiones[i].Part_start == m.Mbr_tamano {
+							str := string(m.Particiones[i].Part_name[:])
+							strCorregido := strings.TrimRight(str, string('\x00'))
+							auxParti := uint64(m.Particiones[i].Part_s * 100)
+							porcentajeDisco := float64(auxParti / uint64(m.Mbr_tamano))
+							archivoGrafica += "<td rowspan ='2'>" + strCorregido + "(P)<br></br>" + strconv.FormatFloat(float64(porcentajeDisco), 'f', -1, 32) + "% del disco</td>"
+						} else {
+							falta := m.Mbr_tamano - (m.Particiones[i].Part_s + m.Particiones[i].Part_start)
+							str := string(m.Particiones[i].Part_name[:])
+							strCorregido := strings.TrimRight(str, string('\x00'))
+							auxParti := uint64(m.Particiones[i].Part_s * 100)
+							porcentajeDisco := float64(auxParti / uint64(m.Mbr_tamano))
+							archivoGrafica += "<td rowspan ='2'>" + strCorregido + "(P)<br></br>" + strconv.FormatFloat(float64(porcentajeDisco), 'f', -1, 32) + "% del disco</td>"
+							auxParti = uint64(falta * 100)
+							porDisco := float64(auxParti / uint64(m.Mbr_tamano))
+							archivoGrafica += "<td rowspan ='2'>Libre <br></br>" + strconv.FormatFloat(float64(porDisco), 'f', -1, 32) + "% del disco</td>"
+						}
+					} else {
+						if m.Particiones[i].Part_s+m.Particiones[i].Part_start == m.Particiones[i+1].Part_start {
+							str := string(m.Particiones[i].Part_name[:])
+							strCorregido := strings.TrimRight(str, string('\x00'))
+							auxParti := uint64(m.Particiones[i].Part_s * 100)
+							porcentajeDisco := float64(auxParti / uint64(m.Mbr_tamano))
+							archivoGrafica += "<td rowspan ='2'>" + strCorregido + "(P)<br></br>" + strconv.FormatFloat(float64(porcentajeDisco), 'f', -1, 32) + "% del disco</td>"
+						} else {
+							if m.Particiones[i+1].Part_start != -1 {
+								falta := m.Particiones[i+1].Part_start - (m.Particiones[i].Part_s + m.Particiones[i].Part_start)
+								str := string(m.Particiones[i].Part_name[:])
+								strCorregido := strings.TrimRight(str, string('\x00'))
+								auxParti := uint64(m.Particiones[i].Part_s * 100)
+								porcentajeDisco := float64(auxParti / uint64(m.Mbr_tamano))
+								archivoGrafica += "<td rowspan ='2'>" + strCorregido + "(P)<br></br>" + strconv.FormatFloat(float64(porcentajeDisco), 'f', -1, 32) + "% del disco</td>"
+								auxParti = uint64(falta * 100)
+								fmt.Println(falta * 100)
+								fmt.Println(m.Mbr_tamano)
+								porDisco := float64(auxParti / uint64(m.Mbr_tamano))
+								fmt.Println(porDisco)
+								archivoGrafica += "<td rowspan ='2'>Libre <br></br>" + strconv.FormatFloat(float64(porDisco), 'f', -1, 32) + "% del disco</td>"
+							} else {
+								falta := m.Mbr_tamano - (m.Particiones[i].Part_s + m.Particiones[i].Part_start)
+								str := string(m.Particiones[i].Part_name[:])
+								strCorregido := strings.TrimRight(str, string('\x00'))
+								auxParti := uint64(m.Particiones[i].Part_s * 100)
+								porcentajeDisco := float64(auxParti / uint64(m.Mbr_tamano))
+								archivoGrafica += "<td rowspan ='2'>" + strCorregido + "(P)<br></br>" + strconv.FormatFloat(float64(porcentajeDisco), 'f', -1, 32) + "% del disco</td>"
+								auxParti = uint64(falta * 100)
+								porDisco := float64(auxParti / uint64(m.Mbr_tamano))
+								fmt.Println(porDisco)
+								archivoGrafica += "<td rowspan ='2'>Libre <br></br>" + strconv.FormatFloat(float64(porDisco), 'f', -1, 32) + "% del disco</td>"
+
+							}
+						}
+					}
+				}
+			}
+		}
+
+		archivoGrafica += "</tr>"
+		archivoGrafica += extraExte
+
+		archivoGrafica += "</table>\n" +
+			"\n" +
+			"    >];\n" +
+			"\n" +
+			"}"
+		fmt.Println("Se creo el reporte con exito.")
+		addConsola("Se creo el reporte con exito.")
+		reporte = archivoGrafica
 	}
 }
 
@@ -2002,6 +2478,10 @@ func obtenerLetra(num int) string {
 	}
 }
 
+func addConsola(parte string) {
+	consola += parte + "\n"
+}
+
 func main() {
 	http.HandleFunc("/read", func(w http.ResponseWriter, r *http.Request) {
 		b, err := ioutil.ReadAll(r.Body)
@@ -2017,8 +2497,22 @@ func main() {
 		} else {
 			fmt.Printf("El nombre: %s\n", tarea.Consola)
 		}
+		consola = ""
+		reporte = ""
 
-		separarPorEspacios(tarea.Consola)
+		exec(tarea.Consola)
+		w.Header().Set("Content-Type", "application/json")
+		var ret Retorno
+		ret.Consola = consola
+		ret.Reporte = reporte
+		jsonData, err := json.Marshal(ret)
+		if err != nil {
+			fmt.Printf("could not marshal json: %s\n", err)
+			return
+		}
+		w.Write(jsonData)
+
+		//fmt.Fprintf(w, consola)
 	})
 
 	srv := http.Server{

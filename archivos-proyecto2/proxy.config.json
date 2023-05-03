@@ -1,7 +1,8 @@
 {
-    "/read/*":{
-        "target": "http://18.116.238.48/read",
+    "/api/*":{
+        "target": "http://18.116.238.48",
         "secure":false,
-        "logLevel": "debug"
+        "logLevel": "debug",
+        "changeOrigin" : true
     }
 }

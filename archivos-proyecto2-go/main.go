@@ -2864,6 +2864,9 @@ func addConsola(parte string) {
 
 func main() {
 	http.HandleFunc("/read", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS, POST")
+		w.Header().Set("Access-Control-Allow-Headers", "Access-Control-Allow-Origin, Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
 		b, err := ioutil.ReadAll(r.Body)
 		if err != nil {
 			panic(err)
@@ -2882,7 +2885,6 @@ func main() {
 
 		exec(tarea.Consola)
 		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("Access-Control-Allow-Origin", "*")
 		var ret Retorno
 		ret.Consola = consola
 		ret.Reporte = reporte

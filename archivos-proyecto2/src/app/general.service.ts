@@ -17,8 +17,10 @@ export class GeneralService {
         'Content-type':'application/json'
       })
     }
-    return this.http.post<any>("/read", comando, httpOptions).pipe(
-      catchError(e => "e")
+    return this.http.post<any>("/api/read", comando, httpOptions).pipe(
+      catchError(e => {console.log(e)
+        return ""
+      })
     );
   }
 

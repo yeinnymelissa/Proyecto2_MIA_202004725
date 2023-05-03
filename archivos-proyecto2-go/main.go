@@ -22,32 +22,34 @@ type task struct {
 }
 
 type Retorno struct {
-	Consola string `json:"consola"`
-	Reporte string `json:"reporte"`
+	Consola   string       `json:"consola"`
+	Reporte   string       `json:"reporte"`
+	Login     bool         `json:"login"`
+	UserLogin UsuarioLogin `json:"user"`
 }
 
 type Particion struct {
 	Part_status byte
 	Part_type   byte
 	Part_fit    byte
-	Part_start  int32
-	Part_s      int32
+	Part_start  int64
+	Part_s      int64
 	Part_name   [16]byte
 }
 
 type Ebr struct {
 	Part_status byte
 	Part_fit    byte
-	Part_start  int32
-	Part_s      int32
-	Part_next   int32
+	Part_start  int64
+	Part_s      int64
+	Part_next   int64
 	Part_name   [16]byte
 }
 
 type Mbr struct {
-	Mbr_tamano         int32
+	Mbr_tamano         int64
 	Mbr_fecha_creacion [16]byte
-	Mbr_dsk_signature  int32
+	Mbr_dsk_signature  int64
 	Dsk_fit            byte
 	Particiones        [4]Particion
 }
@@ -68,39 +70,39 @@ type MountFormat struct {
 }
 
 type SuperBloque struct {
-	S_filesystem_type   int32
-	S_inodes_count      int32
-	S_blocks_count      int32
-	S_free_blocks_count int32
-	S_free_inodes_count int32
+	S_filesystem_type   int64
+	S_inodes_count      int64
+	S_blocks_count      int64
+	S_free_blocks_count int64
+	S_free_inodes_count int64
 	S_mtime             [16]byte
-	S_mnt_count         int32
-	S_magic             int32
-	S_inode_size        int32
-	S_block_size        int32
-	S_firts_ino         int32
-	S_first_blo         int32
-	S_bm_inode_start    int32
-	S_bm_block_start    int32
-	S_inode_start       int32
-	S_block_start       int32
+	S_mnt_count         int64
+	S_magic             int64
+	S_inode_size        int64
+	S_block_size        int64
+	S_firts_ino         int64
+	S_first_blo         int64
+	S_bm_inode_start    int64
+	S_bm_block_start    int64
+	S_inode_start       int64
+	S_block_start       int64
 }
 
 type Inodo struct {
-	I_uid   int32
-	I_gid   int32
-	I_size  int32
+	I_uid   int64
+	I_gid   int64
+	I_size  int64
 	I_atime [16]byte
 	I_ctime [16]byte
 	I_mtime [16]byte
-	I_block [16]int32
+	I_block [16]int64
 	I_type  byte
-	I_perm  int32
+	I_perm  int64
 }
 
 type Content struct {
 	B_name  [12]byte
-	B_inodo int32
+	B_inodo int64
 }
 
 type BloqueCarpetas struct {
@@ -111,9 +113,19 @@ type BloqueArchivos struct {
 	B_content [64]byte
 }
 
+type UsuarioLogin struct {
+	Nombre       string `json:"name"`
+	Pwd          string `json:"pwd"`
+	IdParti      string `json:"idParti"`
+	Confirmacion bool   `json:"confi"`
+}
+
 var mountMap = make(map[string]MountFormat)
 var consola = ""
 var reporte = ""
+var loginVal = false
+var usuarioLogin UsuarioLogin
+var hayUsuario = false
 
 func separarPorEspacios(instruccion string) {
 	insChar := []byte(instruccion)
@@ -165,6 +177,10 @@ func separarPorEspacios(instruccion string) {
 				mkfs(tokens)
 			} else if tokens[0] == "rep" {
 				rep(tokens)
+			} else if tokens[0] == "login" {
+				login(tokens)
+			} else if tokens[0] == "logout" {
+				logout(tokens)
 			} else {
 				fmt.Println("No se reconoce el comando a ejecutar.")
 				addConsola("No se reconoce el comando a ejecutar.")
@@ -260,7 +276,7 @@ func mkdisk(tokens []string) {
 		}
 		rand.Seed(time.Now().Unix())
 		var m Mbr
-		m.Mbr_tamano = int32(auxSize)
+		m.Mbr_tamano = int64(auxSize)
 		t := time.Now()
 		tiempo := strconv.Itoa(t.Year()) + "-" + strconv.Itoa(int(t.UTC().Month())) + "-" + strconv.Itoa(t.Day()) + " " + strconv.Itoa(t.Hour()) + ":" + strconv.Itoa(t.Minute())
 		var array [16]byte
@@ -274,7 +290,7 @@ func mkdisk(tokens []string) {
 		}
 		m.Mbr_fecha_creacion = array
 		m.Dsk_fit = fitD
-		m.Mbr_dsk_signature = int32(rand.Intn(100000))
+		m.Mbr_dsk_signature = int64(rand.Intn(100000))
 		var nada string = ""
 		for i := 0; i < 4; i++ {
 			m.Particiones[i].Part_start = -1
@@ -436,7 +452,7 @@ func fdisk(tokens []string) {
 	if errorVal == false {
 
 		var par Particion
-		par.Part_s = int32(aux)
+		par.Part_s = int64(aux)
 		var arrayName [16]byte
 		longitud := len(arrayName)
 		for i := 0; i < longitud; i++ {
@@ -520,11 +536,11 @@ func fdisk(tokens []string) {
 											}
 										}
 										m.Particiones[i].Part_name = arrayNameAux
-										m.Particiones[i].Part_s = int32(aux)
+										m.Particiones[i].Part_s = int64(aux)
 										m.Particiones[i].Part_type = byte(tipoChar)
 										m.Particiones[i].Part_status = 0
 										m.Particiones[i].Part_fit = byte(fitChar)
-										m.Particiones[i].Part_start = int32(infoSize)
+										m.Particiones[i].Part_start = int64(infoSize)
 										f.Seek(0, 0)
 										binary.Write(f, binary.LittleEndian, &m)
 										fmt.Println("Se creo la particion con exito.")
@@ -549,7 +565,7 @@ func fdisk(tokens []string) {
 											}
 										}
 										m.Particiones[i].Part_name = arrayNameAux
-										m.Particiones[i].Part_s = int32(aux)
+										m.Particiones[i].Part_s = int64(aux)
 										m.Particiones[i].Part_type = byte(tipoChar)
 										m.Particiones[i].Part_status = 0
 										m.Particiones[i].Part_fit = byte(fitChar)
@@ -579,7 +595,7 @@ func fdisk(tokens []string) {
 										}
 									}
 									m.Particiones[i].Part_name = arrayNameAux
-									m.Particiones[i].Part_s = int32(aux)
+									m.Particiones[i].Part_s = int64(aux)
 									m.Particiones[i].Part_type = byte(tipoChar)
 									m.Particiones[i].Part_status = 0
 									m.Particiones[i].Part_fit = byte(fitChar)
@@ -665,7 +681,7 @@ func fdisk(tokens []string) {
 										}
 									}
 									e.Part_name = arrayNameAux
-									e.Part_s = int32(aux)
+									e.Part_s = int64(aux)
 									e.Part_status = 0
 									e.Part_fit = byte(fitChar)
 									err = binary.Write(f, binary.LittleEndian, &e)
@@ -709,7 +725,7 @@ func fdisk(tokens []string) {
 								if err != nil {
 									panic(err)
 								}
-								eb.Part_next = eb.Part_start + eb.Part_s + int32(unsafe.Sizeof(byte(0)))
+								eb.Part_next = eb.Part_start + eb.Part_s + int64(unsafe.Sizeof(byte(0)))
 								_, err = f.Seek(int64(startPart+int(unsafe.Sizeof(byte(0)))), 0)
 								if err != nil {
 									panic(err)
@@ -721,12 +737,12 @@ func fdisk(tokens []string) {
 								aux2 := byte('1')
 								e := Ebr{}
 								copy(e.Part_name[:], []byte(name)[:])
-								e.Part_s = int32(aux)
+								e.Part_s = int64(aux)
 								e.Part_status = 0
 								e.Part_fit = byte(fitChar)
-								e.Part_start = eb.Part_start + eb.Part_s + int32(unsafe.Sizeof(byte(0)))
+								e.Part_start = eb.Part_start + eb.Part_s + int64(unsafe.Sizeof(byte(0)))
 								e.Part_next = -1
-								start := eb.Part_start + eb.Part_s + int32(unsafe.Sizeof(byte(0)))
+								start := eb.Part_start + eb.Part_s + int64(unsafe.Sizeof(byte(0)))
 								_, err = f.Seek(int64(start), 0)
 								if err != nil {
 									panic(err)
@@ -757,10 +773,10 @@ func fdisk(tokens []string) {
 								aux2 := byte('1')
 								e := Ebr{}
 								copy(e.Part_name[:], []byte(name)[:])
-								e.Part_s = int32(aux)
+								e.Part_s = int64(aux)
 								e.Part_status = 0
 								e.Part_fit = byte(fitChar)
-								e.Part_start = int32(startExtendida)
+								e.Part_start = int64(startExtendida)
 								e.Part_next = -1
 								err = binary.Write(f, binary.LittleEndian, &aux2)
 								if err != nil {
@@ -806,7 +822,7 @@ func fdisk(tokens []string) {
 									}
 								}
 								m.Particiones[i].Part_name = arrayNameAux
-								m.Particiones[i].Part_s = int32(aux)
+								m.Particiones[i].Part_s = int64(aux)
 								m.Particiones[i].Part_type = byte(tipoChar)
 								m.Particiones[i].Part_status = 0
 								m.Particiones[i].Part_fit = byte(fitChar)
@@ -837,11 +853,11 @@ func fdisk(tokens []string) {
 											}
 										}
 										m.Particiones[i].Part_name = arrayNameAux
-										m.Particiones[i].Part_s = int32(aux)
+										m.Particiones[i].Part_s = int64(aux)
 										m.Particiones[i].Part_type = byte(tipoChar)
 										m.Particiones[i].Part_status = 0
 										m.Particiones[i].Part_fit = byte(fitChar)
-										m.Particiones[i].Part_start = int32(infoSize)
+										m.Particiones[i].Part_start = int64(infoSize)
 										f.Seek(0, 0)
 										binary.Write(f, binary.LittleEndian, &m)
 										fmt.Println("Se creo la particion con exito.")
@@ -866,7 +882,7 @@ func fdisk(tokens []string) {
 											}
 										}
 										m.Particiones[i].Part_name = arrayNameAux
-										m.Particiones[i].Part_s = int32(aux)
+										m.Particiones[i].Part_s = int64(aux)
 										m.Particiones[i].Part_type = byte(tipoChar)
 										m.Particiones[i].Part_status = 0
 										m.Particiones[i].Part_fit = byte(fitChar)
@@ -995,7 +1011,7 @@ func fdisk(tokens []string) {
 										}
 									}
 									e.Part_name = arrayNameAux
-									e.Part_s = int32(aux)
+									e.Part_s = int64(aux)
 									e.Part_status = 0
 									e.Part_fit = byte(fitChar)
 									err = binary.Write(f, binary.LittleEndian, &e)
@@ -1038,7 +1054,7 @@ func fdisk(tokens []string) {
 								if err != nil {
 									panic(err)
 								}
-								eb.Part_next = eb.Part_start + eb.Part_s + int32(unsafe.Sizeof(byte(0)))
+								eb.Part_next = eb.Part_start + eb.Part_s + int64(unsafe.Sizeof(byte(0)))
 								_, err = f.Seek(int64(startPart+int(unsafe.Sizeof(byte(0)))), 0)
 								if err != nil {
 									panic(err)
@@ -1059,10 +1075,10 @@ func fdisk(tokens []string) {
 									}
 								}
 								e.Part_name = arrayNameAux
-								e.Part_s = int32(aux)
+								e.Part_s = int64(aux)
 								e.Part_status = 0
 								e.Part_fit = byte(fitChar)
-								e.Part_start = eb.Part_start + eb.Part_s + int32(unsafe.Sizeof(byte(0)))
+								e.Part_start = eb.Part_start + eb.Part_s + int64(unsafe.Sizeof(byte(0)))
 								e.Part_next = -1
 								_, err = f.Seek(int64(e.Part_start), 0)
 								if err != nil {
@@ -1103,10 +1119,10 @@ func fdisk(tokens []string) {
 									}
 								}
 								e.Part_name = arrayNameAux
-								e.Part_s = int32(aux)
+								e.Part_s = int64(aux)
 								e.Part_status = 0
 								e.Part_fit = byte(fitChar)
-								e.Part_start = int32(startExtendida)
+								e.Part_start = int64(startExtendida)
 								e.Part_next = -1
 								err = binary.Write(f, binary.LittleEndian, &aux2)
 								if err != nil {
@@ -1154,7 +1170,7 @@ func fdisk(tokens []string) {
 									}
 								}
 								m.Particiones[i].Part_name = arrayNameAux
-								m.Particiones[i].Part_s = int32(aux)
+								m.Particiones[i].Part_s = int64(aux)
 								m.Particiones[i].Part_type = byte(tipoChar)
 								m.Particiones[i].Part_status = 0
 								m.Particiones[i].Part_fit = byte(fitChar)
@@ -1185,11 +1201,11 @@ func fdisk(tokens []string) {
 											}
 										}
 										m.Particiones[i].Part_name = arrayNameAux
-										m.Particiones[i].Part_s = int32(aux)
+										m.Particiones[i].Part_s = int64(aux)
 										m.Particiones[i].Part_type = byte(tipoChar)
 										m.Particiones[i].Part_status = 0
 										m.Particiones[i].Part_fit = byte(fitChar)
-										m.Particiones[i].Part_start = int32(infoSize)
+										m.Particiones[i].Part_start = int64(infoSize)
 										f.Seek(0, 0)
 										binary.Write(f, binary.LittleEndian, &m)
 										fmt.Println("Se creo la particion con exito.")
@@ -1214,7 +1230,7 @@ func fdisk(tokens []string) {
 											}
 										}
 										m.Particiones[i].Part_name = arrayNameAux
-										m.Particiones[i].Part_s = int32(aux)
+										m.Particiones[i].Part_s = int64(aux)
 										m.Particiones[i].Part_type = byte(tipoChar)
 										m.Particiones[i].Part_status = 0
 										m.Particiones[i].Part_fit = byte(fitChar)
@@ -1345,7 +1361,7 @@ func fdisk(tokens []string) {
 										}
 									}
 									e.Part_name = arrayNameAux
-									e.Part_s = int32(aux)
+									e.Part_s = int64(aux)
 									e.Part_status = 0
 									e.Part_fit = byte(fitChar)
 									err = binary.Write(f, binary.LittleEndian, &e)
@@ -1388,7 +1404,7 @@ func fdisk(tokens []string) {
 								if err != nil {
 									panic(err)
 								}
-								eb.Part_next = eb.Part_start + eb.Part_s + int32(unsafe.Sizeof(byte(0)))
+								eb.Part_next = eb.Part_start + eb.Part_s + int64(unsafe.Sizeof(byte(0)))
 								_, err = f.Seek(int64(startPart+int(unsafe.Sizeof(byte(0)))), 0)
 								if err != nil {
 									panic(err)
@@ -1409,10 +1425,10 @@ func fdisk(tokens []string) {
 									}
 								}
 								e.Part_name = arrayNameAux
-								e.Part_s = int32(aux)
+								e.Part_s = int64(aux)
 								e.Part_status = 0
 								e.Part_fit = byte(fitChar)
-								e.Part_start = eb.Part_start + eb.Part_s + int32(unsafe.Sizeof(byte(0)))
+								e.Part_start = eb.Part_start + eb.Part_s + int64(unsafe.Sizeof(byte(0)))
 								e.Part_next = -1
 								_, err = f.Seek(int64(e.Part_start), 0)
 								if err != nil {
@@ -1453,10 +1469,10 @@ func fdisk(tokens []string) {
 									}
 								}
 								e.Part_name = arrayNameAux
-								e.Part_s = int32(aux)
+								e.Part_s = int64(aux)
 								e.Part_status = 0
 								e.Part_fit = byte(fitChar)
-								e.Part_start = int32(startExtendida)
+								e.Part_start = int64(startExtendida)
 								e.Part_next = -1
 								err = binary.Write(f, binary.LittleEndian, &aux2)
 								if err != nil {
@@ -1526,14 +1542,15 @@ func mount(tokens []string) {
 				var mf MountFormat
 				mf = mountItem
 				if strings.ToLower(mf.Name) == strings.ToLower(name) && nameDisco == mf.DiscoName {
+					fmt.Println("YA EXISTE")
 					yaExiste = true
 				}
 			}
 			if yaExiste == false {
 				var part_fit byte
-				var part_start int32
-				var part_s int32
-				var part_next int32
+				var part_start int64
+				var part_s int64
+				var part_next int64
 				var part_type byte
 				f, err := os.OpenFile(path, os.O_RDWR, 0644)
 				if err != nil {
@@ -1693,6 +1710,9 @@ func mount(tokens []string) {
 					fmt.Println("No se pudo montar la particion.")
 					addConsola("No se pudo montar la particion.")
 				}
+			} else {
+				fmt.Println("La partición " + name + " ya está montada.")
+				addConsola("La partición " + name + " ya está montada.")
 			}
 		}
 	}
@@ -1745,27 +1765,27 @@ func mkfs(tokens []string) {
 			const infoSizeInodo = unsafe.Sizeof(infoInodo)
 			var infoBloqueArchi BloqueArchivos
 			const infoSizeBloqueArchi = unsafe.Sizeof(infoBloqueArchi)
-			var infoSuperBloque BloqueArchivos
+			var infoSuperBloque SuperBloque
 			const infoSizeSuperBloque = unsafe.Sizeof(infoSuperBloque)
 			if mf.Part_type == 'L' {
-				_, err = f.Seek(int64(mf.Part_start)+int64(infoSizeEbr), 0)
+				_, err = f.Seek(int64(mf.Part_start)+int64(infoSizeEbr)+int64(unsafe.Sizeof(byte(0))), 0)
 				if err != nil {
 					log.Fatal(err)
 				}
 				var buff byte = 0
-				for i := 0; i < int(mf.Part_s)-int(infoSizeEbr); i++ {
+				for i := 0; i < int(mf.Part_s)-int(infoSizeEbr)-int(unsafe.Sizeof(byte(0))); i++ {
 					_, err = f.Write([]byte{buff})
 					if err != nil {
 						log.Fatal(err)
 					}
 				}
-				n := int(math.Floor(float64(mf.Part_s) - float64(infoSizeEbr) - float64(infoSizeSuperBloque)/(4+float64(infoSizeInodo)+(3*float64(infoSizeBloqueArchi)))))
+				n := int(math.Floor((float64(mf.Part_s) - float64(infoSizeEbr) - float64(infoSizeSuperBloque)) / (4 + float64(infoSizeInodo) + (3 * float64(infoSizeBloqueArchi)))))
 				var sb SuperBloque
 				sb.S_filesystem_type = 2
-				sb.S_inodes_count = int32(n)
-				sb.S_blocks_count = int32(3 * n)
-				sb.S_free_blocks_count = int32(3 * n)
-				sb.S_free_inodes_count = int32(n)
+				sb.S_inodes_count = int64(n)
+				sb.S_blocks_count = int64(3 * n)
+				sb.S_free_blocks_count = int64(3 * n)
+				sb.S_free_inodes_count = int64(n)
 				t := time.Now()
 				tiempo := strconv.Itoa(t.Year()) + "-" + strconv.Itoa(int(t.UTC().Month())) + "-" + strconv.Itoa(t.Day()) + " " + strconv.Itoa(t.Hour()) + ":" + strconv.Itoa(t.Minute())
 				var array [16]byte
@@ -1780,22 +1800,14 @@ func mkfs(tokens []string) {
 				sb.S_mtime = array
 				sb.S_mnt_count = 1
 				sb.S_magic = 0xEF53
-				sb.S_inode_size = int32(infoSizeInodo)
-				sb.S_block_size = int32(infoSizeBloqueArchi)
+				sb.S_inode_size = int64(infoSizeInodo)
+				sb.S_block_size = int64(infoSizeBloqueArchi)
 				sb.S_firts_ino = 2
 				sb.S_first_blo = 2
-				sb.S_bm_inode_start = int32(mf.Part_start) + int32(infoSizeEbr) + int32(infoSizeSuperBloque)
-				sb.S_bm_block_start = sb.S_bm_inode_start + int32(n)
-				sb.S_inode_start = sb.S_bm_block_start + int32(3*n)
-				sb.S_block_start = sb.S_inode_start + int32(n)*int32(infoSizeInodo)
-				_, err = f.Seek(int64(mf.Part_start)+int64(infoSizeEbr), 0)
-				if err != nil {
-					log.Fatal(err)
-				}
-				err = binary.Write(f, binary.LittleEndian, &sb)
-				if err != nil {
-					panic(err)
-				}
+				sb.S_bm_inode_start = int64(mf.Part_start) + int64(infoSizeEbr) + int64(infoSizeSuperBloque) + int64(unsafe.Sizeof(byte(0)))
+				sb.S_bm_block_start = sb.S_bm_inode_start + int64(n)
+				sb.S_inode_start = sb.S_bm_block_start + int64(3*n)
+				sb.S_block_start = sb.S_inode_start + (int64(n) * int64(infoSizeInodo))
 
 				mbinodos := make([]byte, n)
 				mbbloques := make([]byte, 3*n)
@@ -1804,7 +1816,7 @@ func mkfs(tokens []string) {
 				}
 				mbinodos[0] = '1'
 				mbinodos[1] = '1'
-				_, err := f.Seek(int64(mf.Part_start)+int64(infoSizeEbr)+int64(infoSizeSuperBloque), 0)
+				_, err := f.Seek(int64(mf.Part_start)+int64(infoSizeEbr)+int64(infoSizeSuperBloque)+int64(unsafe.Sizeof(byte(0))), 0)
 				if err != nil {
 					panic(err)
 				}
@@ -1818,7 +1830,7 @@ func mkfs(tokens []string) {
 				}
 				mbbloques[0] = '1'
 				mbbloques[1] = '1'
-				_, err = f.Seek(int64(mf.Part_start)+int64(infoSizeEbr)+int64(infoSizeSuperBloque)+int64(n), 0)
+				_, err = f.Seek(int64(mf.Part_start)+int64(infoSizeEbr)+int64(infoSizeSuperBloque)+int64(n)+int64(unsafe.Sizeof(byte(0))), 0)
 				if err != nil {
 					panic(err)
 				}
@@ -1875,16 +1887,7 @@ func mkfs(tokens []string) {
 				contenidoR.B_name = arrayVacio
 				contenidoR.B_inodo = -1
 				bcRoot.B_content[3] = contenidoR
-				var auxsuperbloque SuperBloque
-				_, err = f.Seek(int64(mf.Part_start)+int64(infoSizeEbr), 0)
-				if err != nil {
-					panic(err)
-				}
-				err = binary.Read(f, binary.LittleEndian, &auxsuperbloque)
-				if err != nil {
-					panic(err)
-				}
-				_, err = f.Seek(int64(auxsuperbloque.S_inode_start), 0)
+				_, err = f.Seek(int64(sb.S_inode_start), 0)
 				if err != nil {
 					panic(err)
 				}
@@ -1892,8 +1895,8 @@ func mkfs(tokens []string) {
 				if err != nil {
 					panic(err)
 				}
-				auxsuperbloque.S_free_inodes_count--
-				_, err = f.Seek(int64(auxsuperbloque.S_block_start), 0)
+				sb.S_free_inodes_count--
+				_, err = f.Seek(int64(sb.S_block_start), 0)
 				if err != nil {
 					panic(err)
 				}
@@ -1901,12 +1904,12 @@ func mkfs(tokens []string) {
 				if err != nil {
 					panic(err)
 				}
-				auxsuperbloque.S_free_blocks_count--
+				sb.S_free_blocks_count--
 
 				archivoUsers := "1,G,root\n1,U,root,root,123\n"
 				var archivousuarios Inodo
 				archivousuarios.I_gid = 1
-				archivousuarios.I_size = int32(len(archivoUsers))
+				archivousuarios.I_size = int64(len(archivoUsers))
 				archivousuarios.I_uid = 1
 				t = time.Now()
 				tiempo = strconv.Itoa(t.Year()) + "-" + strconv.Itoa(int(t.UTC().Month())) + "-" + strconv.Itoa(t.Day()) + " " + strconv.Itoa(t.Hour()) + ":" + strconv.Itoa(t.Minute())
@@ -1940,7 +1943,7 @@ func mkfs(tokens []string) {
 				bloquearchivos.B_content = arrayContent
 				f, _ := os.OpenFile(mf.Path, os.O_WRONLY, 0644)
 				defer f.Close()
-				_, err = f.Seek(int64(auxsuperbloque.S_inode_start)+int64(infoSizeInodo), 0)
+				_, err = f.Seek(int64(sb.S_inode_start)+int64(infoSizeInodo), 0)
 				if err != nil {
 					panic(err)
 				}
@@ -1948,8 +1951,8 @@ func mkfs(tokens []string) {
 				if err != nil {
 					panic(err)
 				}
-				auxsuperbloque.S_free_inodes_count--
-				_, err = f.Seek(int64(auxsuperbloque.S_block_start)+int64(infoSizeBloqueArchi), 0)
+				sb.S_free_inodes_count--
+				_, err = f.Seek(int64(sb.S_block_start)+int64(infoSizeBloqueArchi), 0)
 				if err != nil {
 					panic(err)
 				}
@@ -1957,12 +1960,12 @@ func mkfs(tokens []string) {
 				if err != nil {
 					panic(err)
 				}
-				auxsuperbloque.S_free_blocks_count--
-				_, err = f.Seek(int64(mf.Part_start)+int64(infoSizeEbr), 0)
+				sb.S_free_blocks_count--
+				_, err = f.Seek(int64(mf.Part_start)+int64(infoSizeEbr)+int64(unsafe.Sizeof(byte(0))), 0)
 				if err != nil {
 					panic(err)
 				}
-				err = binary.Write(f, binary.LittleEndian, &auxsuperbloque)
+				err = binary.Write(f, binary.LittleEndian, &sb)
 				if err != nil {
 					panic(err)
 				}
@@ -1974,13 +1977,13 @@ func mkfs(tokens []string) {
 				for i := 0; i < mf.Part_s; i++ {
 					f.Write([]byte{buff})
 				}
-				n := int(math.Floor(float64(mf.Part_s) - float64(infoSizeSuperBloque)/(4+float64(infoSizeInodo)+(3*float64(infoSizeBloqueArchi)))))
+				n := int(math.Floor((float64(mf.Part_s) - float64(infoSizeSuperBloque)) / (4 + float64(infoSizeInodo) + (3 * float64(infoSizeBloqueArchi)))))
 				var sb SuperBloque
 				sb.S_filesystem_type = 2
-				sb.S_inodes_count = int32(n)
-				sb.S_blocks_count = int32(3 * n)
-				sb.S_free_blocks_count = int32(3 * n)
-				sb.S_free_inodes_count = int32(n)
+				sb.S_inodes_count = int64(n)
+				sb.S_blocks_count = int64(3 * n)
+				sb.S_free_blocks_count = int64(3 * n)
+				sb.S_free_inodes_count = int64(n)
 				t := time.Now()
 				tiempo := strconv.Itoa(t.Year()) + "-" + strconv.Itoa(int(t.UTC().Month())) + "-" + strconv.Itoa(t.Day()) + " " + strconv.Itoa(t.Hour()) + ":" + strconv.Itoa(t.Minute())
 				var array [16]byte
@@ -1995,16 +1998,16 @@ func mkfs(tokens []string) {
 				sb.S_mtime = array
 				sb.S_mnt_count = 1
 				sb.S_magic = 0xEF53
-				sb.S_inode_size = int32(infoSizeInodo)
-				sb.S_block_size = int32(infoSizeBloqueArchi)
+				sb.S_inode_size = int64(infoSizeInodo)
+				sb.S_block_size = int64(infoSizeBloqueArchi)
 				sb.S_firts_ino = 2
 				sb.S_first_blo = 2
-				sb.S_bm_inode_start = int32(mf.Part_start) + int32(infoSizeSuperBloque)
-				sb.S_bm_block_start = sb.S_bm_inode_start + int32(n)
-				sb.S_inode_start = sb.S_bm_block_start + int32(3*n)
-				sb.S_block_start = sb.S_inode_start + int32(n)*int32(infoSizeInodo)
-				f.Seek(int64(mf.Part_start), 0)
-				binary.Write(f, binary.LittleEndian, &sb)
+				sb.S_bm_inode_start = int64(mf.Part_start) + int64(infoSizeSuperBloque)
+				sb.S_bm_block_start = sb.S_bm_inode_start + int64(n)
+				sb.S_inode_start = sb.S_bm_block_start + int64(3*n)
+				fmt.Println(sb.S_inode_start)
+				sb.S_block_start = sb.S_inode_start + (int64(n) * int64(infoSizeInodo))
+				fmt.Println(sb.S_block_start)
 
 				mbinodos := make([]byte, n)
 				mbbloques := make([]byte, 3*n)
@@ -2047,13 +2050,13 @@ func mkfs(tokens []string) {
 					if i < len(tiempo) {
 						array[i] = tiempo[i]
 					} else {
-						array[i] = ' '
+						array[i] = '\x00'
 					}
 				}
 				raiz.I_atime = array
 				raiz.I_ctime = array
 				raiz.I_mtime = array
-				for i := 0; i < 15; i++ {
+				for i := 0; i < 16; i++ {
 					raiz.I_block[i] = -1
 				}
 				raiz.I_type = '0'
@@ -2084,25 +2087,22 @@ func mkfs(tokens []string) {
 				contenidoR.B_name = arrayVacio
 				contenidoR.B_inodo = -1
 				bcRoot.B_content[3] = contenidoR
-				var auxsuperbloque SuperBloque
-				_, err = f.Seek(int64(mf.Part_start), 0)
+
+				fmt.Println(sb.S_inode_start)
+				_, err = f.Seek(int64(sb.S_inode_start), 0)
 				if err != nil {
 					panic(err)
 				}
-				err = binary.Read(f, binary.LittleEndian, &auxsuperbloque)
-				if err != nil {
-					panic(err)
-				}
-				_, err = f.Seek(int64(auxsuperbloque.S_inode_start), 0)
-				if err != nil {
-					panic(err)
-				}
+
 				err = binary.Write(f, binary.LittleEndian, &raiz)
 				if err != nil {
 					panic(err)
 				}
-				auxsuperbloque.S_free_inodes_count--
-				_, err = f.Seek(int64(auxsuperbloque.S_block_start), 0)
+
+				sb.S_free_inodes_count--
+				ver, err := f.Seek(int64(sb.S_block_start), 0)
+
+				fmt.Println(ver)
 				if err != nil {
 					panic(err)
 				}
@@ -2110,12 +2110,12 @@ func mkfs(tokens []string) {
 				if err != nil {
 					panic(err)
 				}
-				auxsuperbloque.S_free_blocks_count--
+				sb.S_free_blocks_count--
 
 				archivoUsers := "1,G,root\n1,U,root,root,123\n"
 				var archivousuarios Inodo
 				archivousuarios.I_gid = 1
-				archivousuarios.I_size = int32(len(archivoUsers))
+				archivousuarios.I_size = int64(len(archivoUsers))
 				archivousuarios.I_uid = 1
 				t = time.Now()
 				tiempo = strconv.Itoa(t.Year()) + "-" + strconv.Itoa(int(t.UTC().Month())) + "-" + strconv.Itoa(t.Day()) + " " + strconv.Itoa(t.Hour()) + ":" + strconv.Itoa(t.Minute())
@@ -2149,7 +2149,7 @@ func mkfs(tokens []string) {
 				bloquearchivos.B_content = arrayContent
 				f, _ := os.OpenFile(mf.Path, os.O_WRONLY, 0644)
 				defer f.Close()
-				_, err = f.Seek(int64(auxsuperbloque.S_inode_start)+int64(infoSizeInodo), 0)
+				_, err = f.Seek(int64(sb.S_inode_start)+int64(infoSizeInodo), 0)
 				if err != nil {
 					panic(err)
 				}
@@ -2157,8 +2157,8 @@ func mkfs(tokens []string) {
 				if err != nil {
 					panic(err)
 				}
-				auxsuperbloque.S_free_inodes_count--
-				_, err = f.Seek(int64(auxsuperbloque.S_block_start)+int64(infoSizeBloqueArchi), 0)
+				sb.S_free_inodes_count--
+				_, err = f.Seek(int64(sb.S_block_start)+int64(infoSizeBloqueArchi), 0)
 				if err != nil {
 					panic(err)
 				}
@@ -2166,12 +2166,13 @@ func mkfs(tokens []string) {
 				if err != nil {
 					panic(err)
 				}
-				auxsuperbloque.S_free_blocks_count--
+				sb.S_free_blocks_count--
+
 				_, err = f.Seek(int64(mf.Part_start), 0)
 				if err != nil {
 					panic(err)
 				}
-				err = binary.Write(f, binary.LittleEndian, &auxsuperbloque)
+				err = binary.Write(f, binary.LittleEndian, &sb)
 				if err != nil {
 					panic(err)
 				}
@@ -2399,6 +2400,385 @@ func diskRep(path string, id string) {
 	}
 }
 
+func login(tokens []string) {
+	user := ""
+	pwd := ""
+	id := ""
+	errorVal := false
+	for i := 1; i < len(tokens); i++ {
+		parameter := make([]string, 0)
+		sp := strings.Split(tokens[i], "=")
+		for _, tokenPar := range sp {
+			parameter = append(parameter, tokenPar)
+		}
+		if strings.ToLower(parameter[0]) == ">user" {
+			user = parameter[1]
+		} else if strings.ToLower(parameter[0]) == ">pwd" {
+			pwd = parameter[1]
+		} else if strings.ToLower(parameter[0]) == ">id" {
+			id = parameter[1]
+		} else {
+			fmt.Println("No se reconoce el comando.")
+			errorVal = true
+		}
+	}
+
+	if user == "" || pwd == "" || id == "" {
+		fmt.Println("El nombre, el id y el path son obligatorios.")
+		errorVal = true
+	}
+
+	if usuarioLogin.Nombre != "" {
+		errorVal = true
+		fmt.Println("No puede iniciarse una nueva sesión si no se ha cerrado la anterior")
+		addConsola("No puede iniciarse una nueva sesión si no se ha cerrado la anterior")
+		usuarioLogin = UsuarioLogin{
+			Nombre:       usuarioLogin.Nombre,
+			Pwd:          usuarioLogin.Pwd,
+			IdParti:      usuarioLogin.IdParti,
+			Confirmacion: false,
+		}
+	}
+
+	if errorVal == false {
+		var encontre bool = false
+		var mf MountFormat
+		for idMount, mountItem := range mountMap {
+			if strings.ToLower(idMount) == strings.ToLower(id) {
+				mf = mountItem
+				encontre = true
+			}
+		}
+		if encontre == true {
+			f, err := os.OpenFile(mf.Path, os.O_RDWR, 0644)
+			if err != nil {
+				log.Fatal(err)
+			}
+			defer f.Close()
+			var infoEbr Ebr
+			const infoSizeEbr = unsafe.Sizeof(infoEbr)
+			var infoInodo Inodo
+			const infoSizeInodo = unsafe.Sizeof(infoInodo)
+			var infoBloqueArchi BloqueArchivos
+			const infoSizeBloqueArchi = unsafe.Sizeof(infoBloqueArchi)
+			var infoSuperBloque SuperBloque
+			const infoSizeSuperBloque = unsafe.Sizeof(infoSuperBloque)
+			if mf.Part_type == 'P' {
+				_, err = f.Seek(int64(mf.Part_start), 0)
+				if err != nil {
+					log.Fatal(err)
+				}
+				var sb SuperBloque
+				err = binary.Read(f, binary.LittleEndian, &sb)
+				if err != nil {
+					log.Fatal(err)
+				}
+
+				inicioInodos := sb.S_inode_start
+				inicioBloques := sb.S_block_start
+
+				_, err = f.Seek(int64(inicioInodos), 0)
+				if err != nil {
+					log.Fatal(err)
+				}
+
+				var inodoRaiz Inodo
+				err = binary.Read(f, binary.LittleEndian, &inodoRaiz)
+				if err != nil {
+					log.Fatal(err)
+				}
+
+				for _, s := range inodoRaiz.I_block {
+					if s != -1 {
+						_, err = f.Seek(int64(inicioBloques), 0)
+						if err != nil {
+							log.Fatal(err)
+						}
+
+						var bloqcar BloqueCarpetas
+						err = binary.Read(f, binary.LittleEndian, &bloqcar)
+						if err != nil {
+							panic(err)
+						}
+						strCorregido := strings.TrimRight(string(bloqcar.B_content[2].B_name[:]), string('\x00'))
+
+						strUsuariosGrupos := ""
+
+						if strCorregido == "users.txt" {
+							buscarEnInodos := inicioInodos
+							_, err = f.Seek(int64(inicioInodos), 0)
+							if err != nil {
+								log.Fatal(err)
+							}
+
+							var auxParti byte
+							err = binary.Read(f, binary.LittleEndian, &auxParti)
+							if err != nil {
+								panic(err)
+							}
+							contador := 0
+							for auxParti != '\x00' {
+								var in Inodo
+								ver, err := f.Seek(buscarEnInodos, 0)
+								fmt.Println(ver)
+								if err != nil {
+									log.Fatal(err)
+								}
+								err = binary.Read(f, binary.LittleEndian, &in)
+								if err != nil {
+									panic(err)
+								}
+
+								if contador == int(bloqcar.B_content[2].B_inodo) {
+									fmt.Println("PRUEBO QUE PASA2")
+									if in.I_block[1] == -1 {
+										ver, err = f.Seek(int64(inicioBloques), 0)
+										fmt.Println(ver)
+										if err != nil {
+											panic(err)
+										}
+
+										var bloqcar BloqueCarpetas
+										err = binary.Read(f, binary.LittleEndian, &bloqcar)
+										if err != nil {
+											panic(err)
+										}
+										ver, err = f.Seek(int64(inicioBloques)+int64(infoSizeBloqueArchi), 0)
+										fmt.Println(ver)
+										if err != nil {
+											panic(err)
+										}
+
+										var bloqArchi BloqueArchivos
+										err = binary.Read(f, binary.LittleEndian, &bloqArchi)
+										if err != nil {
+											panic(err)
+										}
+
+										str := string(bloqArchi.B_content[:])
+										strCorregido := strings.TrimRight(str, string('\x00'))
+										strUsuariosGrupos += strCorregido
+										break
+									} else {
+
+									}
+								}
+								buscarEnInodos += int64(infoSizeInodo)
+
+								ver, err = f.Seek(buscarEnInodos, 0)
+								fmt.Println(ver)
+								if err != nil {
+									panic(err)
+								}
+
+								err = binary.Read(f, binary.LittleEndian, &auxParti)
+								if err != nil {
+									panic(err)
+								}
+								contador++
+							}
+
+						}
+
+						lineasUsuarioGrupos := strings.Split(strUsuariosGrupos, "\n")
+						for _, parte := range lineasUsuarioGrupos {
+							comasUsuario := strings.Split(parte, ",")
+							for i := 0; i < len(comasUsuario); i++ {
+								if comasUsuario[i] == "U" {
+									if comasUsuario[i+2] == user && comasUsuario[i+3] == pwd {
+										loginVal = true
+										usuarioLogin = UsuarioLogin{
+											Nombre:       user,
+											Pwd:          pwd,
+											IdParti:      id,
+											Confirmacion: true,
+										}
+									}
+								}
+							}
+						}
+
+						if loginVal == false {
+							addConsola("Usuario o contraseña incorrecta")
+						}
+
+					} else {
+						break
+					}
+				}
+			} else if mf.Part_type == 'L' {
+				_, err = f.Seek(int64(mf.Part_start)+int64(infoSizeEbr)+int64(unsafe.Sizeof(byte(0))), 0)
+				if err != nil {
+					log.Fatal(err)
+				}
+				var sb SuperBloque
+				err = binary.Read(f, binary.LittleEndian, &sb)
+				if err != nil {
+					log.Fatal(err)
+				}
+
+				inicioInodos := sb.S_inode_start
+				inicioBloques := sb.S_block_start
+
+				_, err = f.Seek(int64(inicioInodos), 0)
+				if err != nil {
+					log.Fatal(err)
+				}
+
+				var inodoRaiz Inodo
+				err = binary.Read(f, binary.LittleEndian, &inodoRaiz)
+				if err != nil {
+					log.Fatal(err)
+				}
+
+				for _, s := range inodoRaiz.I_block {
+					if s != -1 {
+						_, err = f.Seek(int64(inicioBloques), 0)
+						if err != nil {
+							log.Fatal(err)
+						}
+
+						var bloqcar BloqueCarpetas
+						err = binary.Read(f, binary.LittleEndian, &bloqcar)
+						if err != nil {
+							panic(err)
+						}
+						strCorregido := strings.TrimRight(string(bloqcar.B_content[2].B_name[:]), string('\x00'))
+
+						strUsuariosGrupos := ""
+
+						if strCorregido == "users.txt" {
+							buscarEnInodos := inicioInodos
+							_, err = f.Seek(int64(inicioInodos), 0)
+							if err != nil {
+								log.Fatal(err)
+							}
+
+							var auxParti byte
+							err = binary.Read(f, binary.LittleEndian, &auxParti)
+							if err != nil {
+								panic(err)
+							}
+							contador := 0
+							for auxParti != '\x00' {
+								var in Inodo
+								ver, err := f.Seek(buscarEnInodos, 0)
+								fmt.Println(ver)
+								if err != nil {
+									log.Fatal(err)
+								}
+								err = binary.Read(f, binary.LittleEndian, &in)
+								if err != nil {
+									panic(err)
+								}
+
+								if contador == int(bloqcar.B_content[2].B_inodo) {
+									fmt.Println("PRUEBO QUE PASA2")
+									if in.I_block[1] == -1 {
+										ver, err = f.Seek(int64(inicioBloques), 0)
+										fmt.Println(ver)
+										if err != nil {
+											panic(err)
+										}
+
+										var bloqcar BloqueCarpetas
+										err = binary.Read(f, binary.LittleEndian, &bloqcar)
+										if err != nil {
+											panic(err)
+										}
+										ver, err = f.Seek(int64(inicioBloques)+int64(infoSizeBloqueArchi), 0)
+										fmt.Println(ver)
+										if err != nil {
+											panic(err)
+										}
+
+										var bloqArchi BloqueArchivos
+										err = binary.Read(f, binary.LittleEndian, &bloqArchi)
+										if err != nil {
+											panic(err)
+										}
+
+										str := string(bloqArchi.B_content[:])
+										strCorregido := strings.TrimRight(str, string('\x00'))
+										strUsuariosGrupos += strCorregido
+										break
+									} else {
+
+									}
+								}
+								buscarEnInodos += int64(infoSizeInodo)
+
+								ver, err = f.Seek(buscarEnInodos, 0)
+								fmt.Println(ver)
+								if err != nil {
+									panic(err)
+								}
+
+								err = binary.Read(f, binary.LittleEndian, &auxParti)
+								if err != nil {
+									panic(err)
+								}
+								contador++
+							}
+
+						}
+						lineasUsuarioGrupos := strings.Split(strUsuariosGrupos, "\n")
+						for _, parte := range lineasUsuarioGrupos {
+							comasUsuario := strings.Split(parte, ",")
+							for i := 0; i < len(comasUsuario); i++ {
+								if comasUsuario[i] == "U" {
+									if comasUsuario[i+2] == user && comasUsuario[i+3] == pwd {
+										loginVal = true
+										usuarioLogin = UsuarioLogin{
+											Nombre:       user,
+											Pwd:          pwd,
+											IdParti:      id,
+											Confirmacion: true,
+										}
+									}
+								}
+							}
+						}
+
+						if loginVal == false {
+							addConsola("Usuario o contraseña incorrecta")
+						}
+
+					} else {
+						break
+					}
+				}
+			}
+		} else {
+			addConsola("El id de la partición no existe")
+		}
+	}
+
+}
+
+func logout(tokens []string) {
+
+	if len(tokens) > 1 {
+		addConsola("Existen parametros para el logout y no requiere de ninguno")
+		fmt.Println("Existen parametros para el logout y no requiere de ninguno")
+	}
+
+	if loginVal == true {
+		loginVal = false
+		usuarioLogin = UsuarioLogin{
+			Nombre:       "",
+			Pwd:          "",
+			IdParti:      "",
+			Confirmacion: false,
+		}
+		addConsola("Vuelva pronto.")
+		fmt.Println("Vuelva pronto.")
+	} else {
+		addConsola("No hay ninguna sesión activa.")
+		fmt.Println("No hay ninguna sesión activa.")
+	}
+}
+
 //--------------------------------FUNCIONES GENERALES------------------------------
 
 func crearCarpetas(path string) {
@@ -2505,6 +2885,8 @@ func main() {
 		var ret Retorno
 		ret.Consola = consola
 		ret.Reporte = reporte
+		ret.Login = loginVal
+		ret.UserLogin = usuarioLogin
 		jsonData, err := json.Marshal(ret)
 		if err != nil {
 			fmt.Printf("could not marshal json: %s\n", err)

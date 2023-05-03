@@ -7,29 +7,31 @@
             class="img-fluid" alt="Sample image">
         </div>
         <div class="col-md-8 col-lg-6 col-xl-4 offset-xl-1">
-          <form>
+          <form id="formu">
             <div class="form-outline mb-4">
-              <input type="email" id="form3Example1" class="form-control form-control-lg"
-                placeholder="Ingrese el ID de la particion" />
+              <h3 style="text-align: center;">LOGIN</h3>
+            </div>
+            <div class="form-outline mb-4">
+              <input [(ngModel)]="idParti" type="text" name="form3Example1" id="form3Example1" class="form-control form-control-lg"
+                placeholder="Ingrese el ID de la particion" required/>
               <label class="form-label" for="form3Example1">ID Particion</label>
             </div>
 
             <div class="form-outline mb-4">
-              <input type="email" id="form3Example3" class="form-control form-control-lg"
-                placeholder="Ingrese su user" />
+              <input [(ngModel)]="user" type="text" name="form3Example3" id="form3Example3" class="form-control form-control-lg"
+                placeholder="Ingrese su user" required/>
               <label class="form-label" for="form3Example3">User</label>
             </div>
   
-            <!-- Password input -->
             <div class="form-outline mb-3">
-              <input type="password" id="form3Example4" class="form-control form-control-lg"
-                placeholder="Ingrese su password" />
+              <input [(ngModel)]="pwd" type="password" name="form3Example4" id="form3Example4" class="form-control form-control-lg"
+                placeholder="Ingrese su password" required/>
               <label class="form-label" for="form3Example4">Password</label>
             </div>
   
             <div class="text-center text-lg-start mt-4 pt-2">
               <button type="button" class="btn btn-primary btn-lg"
-                style="padding-left: 2.5rem; padding-right: 2.5rem;">Login</button>
+                style="padding-left: 2.5rem; padding-right: 2.5rem;" (click)="login()">Login</button>
             </div>
   
           </form>

@@ -1,8 +1,5 @@
 import { Component } from '@angular/core';
-import { Router } from '@angular/router';
-import { HttpClient, HttpClientModule } from '@angular/common/http';
 import { GeneralService } from 'src/app/general.service';
-import { delay} from "rxjs/operators";
 
 @Component({
   selector: 'app-carga',
@@ -16,7 +13,7 @@ export class CargaComponent {
   consola:String = ""
   comandosTmp: any[]
 
-  constructor(private router:Router, private http: HttpClient, private servicio: GeneralService){
+  constructor(private servicio: GeneralService){
     this.comandosTmp = []
   }
 
@@ -51,6 +48,7 @@ export class CargaComponent {
       let stringifiedData = JSON.stringify(datos);
       this.servicio.mandarComando(stringifiedData).subscribe(
         (response:any) =>{
+          console.log(response)
           this.consola += response.consola
           console.log(this.consola)
           const consol: any = document.getElementById("consola")

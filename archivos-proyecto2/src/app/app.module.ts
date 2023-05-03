@@ -8,19 +8,29 @@ import { NavbarComponent } from './componentes/navbar/navbar.component';
 import { CargaComponent } from './componentes/carga/carga.component';
 import { LoginComponent } from './componentes/login/login.component';
 import { HttpClientModule} from '@angular/common/http';
+import { DashboardComponent } from './componentes/dashboard/dashboard.component';
+import { MessagesModule } from 'primeng/messages';
+import { MessageModule } from 'primeng/message';
+import { NavbardashComponent } from './componentes/navbardash/navbardash.component';
+import { InicioComponent } from './componentes/inicio/inicio.component';
 
 @NgModule({
   declarations: [
     AppComponent,
     NavbarComponent,
     CargaComponent,
-    LoginComponent
+    LoginComponent,
+    DashboardComponent,
+    NavbardashComponent,
+    InicioComponent
   ],
   imports: [
     BrowserModule,
     AppRoutingModule,
     FormsModule,
-    HttpClientModule
+    HttpClientModule,
+    MessagesModule,
+    MessageModule
   ],
   providers: [],
   bootstrap: [AppComponent]

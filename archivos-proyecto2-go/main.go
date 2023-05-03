@@ -2882,6 +2882,7 @@ func main() {
 
 		exec(tarea.Consola)
 		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Access-Control-Allow-Origin", "*")
 		var ret Retorno
 		ret.Consola = consola
 		ret.Reporte = reporte

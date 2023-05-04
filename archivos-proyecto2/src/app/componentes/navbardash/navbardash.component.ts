@@ -49,4 +49,8 @@ export class NavbardashComponent implements OnInit{
   principal(){
     this.router.navigate(['/dashboard']);
   }
+
+  reportes(){
+    this.router.navigate(['/reportes']);
+  }
 }

@@ -2214,7 +2214,7 @@ func rep(tokens []string) {
 		case "disk":
 			diskRep(path, id)
 		case "sb":
-			//superBloqueRep(path, id)
+			superBloqueRep(path, id)
 		}
 	}
 }
@@ -2252,6 +2252,7 @@ func diskRep(path string, id string) {
 		archivoGrafica += "\n<tr>"
 		archivoGrafica += "\n<td rowspan ='2'>MBR</td>"
 		extraExte := ""
+		yaLibre := false
 
 		for i := 0; i < 4; i++ {
 			if m.Particiones[i].Part_s != 0 && m.Particiones[i].Part_name[0] != '\x00' {
@@ -2273,100 +2274,82 @@ func diskRep(path string, id string) {
 								log.Panic(err)
 							}
 							if e.Part_name[0] == '\x00' {
-								porcentajeDisco := (float64(e.Part_s) * 100) / float64(m.Mbr_tamano)
+								auxParti := uint64(e.Part_s * 100)
+								porcentajeDisco := float64(auxParti / uint64(m.Mbr_tamano))
 								extraExte += "<td>Libre <br></br>" + strconv.FormatFloat(float64(porcentajeDisco), 'f', -1, 32) + "% del disco</td>"
 								numBloq++
 							} else {
 								if e.Part_s+e.Part_start == e.Part_next {
 									str := string(e.Part_name[:])
-									porcentajeDisco := (float64(e.Part_s) * 100) / float64(m.Mbr_tamano)
+									strCorregido := strings.TrimRight(str, string('\x00'))
+									auxParti := uint64(e.Part_s * 100)
+									porcentajeDisco := float64(auxParti / uint64(m.Mbr_tamano))
 									extraExte += "<td>EBR</td>"
 									numBloq++
-									extraExte += "<td>" + str + "(L)<br></br>" + strconv.FormatFloat(float64(porcentajeDisco), 'f', -1, 32) + "% del disco</td>"
+									extraExte += "<td>" + strCorregido + "(L)<br></br>" + strconv.FormatFloat(float64(porcentajeDisco), 'f', -1, 32) + "% del disco</td>"
 									numBloq++
 								} else {
 									if e.Part_next == -1 {
 										str := string(e.Part_name[:])
-										porcentajeDisco := (float64(e.Part_s) * 100) / float64(m.Mbr_tamano)
+										strCorregido := strings.TrimRight(str, string('\x00'))
+										auxParti := uint64(e.Part_s * 100)
+										porcentajeDisco := float64(auxParti / uint64(m.Mbr_tamano))
 										extraExte += "<td>EBR</td>"
 										numBloq++
-										extraExte += "<td>" + str + "(L)<br></br>" + strconv.FormatFloat(float64(porcentajeDisco), 'f', -1, 32) + "% del disco</td>"
+										extraExte += "<td>" + strCorregido + "(L)<br></br>" + strconv.FormatFloat(float64(porcentajeDisco), 'f', -1, 32) + "% del disco</td>"
 										numBloq++
 										if e.Part_s+e.Part_start < m.Particiones[i].Part_s+m.Particiones[i].Part_start {
-											porDisco := (float64((m.Particiones[i].Part_s+m.Particiones[i].Part_start)-(e.Part_s+e.Part_start)) * 100) / float64(m.Mbr_tamano)
+											auxParti2 := uint64(((m.Particiones[i].Part_s + m.Particiones[i].Part_start) - (e.Part_s + e.Part_start)) * 100)
+											porDisco := float64(auxParti2 / uint64(m.Mbr_tamano))
 											extraExte += "<td>Libre <br></br>" + strconv.FormatFloat(float64(porDisco), 'f', -1, 32) + "% del disco</td>"
 											numBloq++
 										}
 									} else {
 										str := string(e.Part_name[:])
-										porcentajeDisco := (float64(e.Part_s) * 100) / float64(m.Mbr_tamano)
+										strCorregido := strings.TrimRight(str, string('\x00'))
+										auxParti := uint64(e.Part_s * 100)
+										porcentajeDisco := float64(auxParti / uint64(m.Mbr_tamano))
 										extraExte += "<td>EBR</td>"
 										numBloq++
-										extraExte += "<td>" + str + "(L)<br></br>" + strconv.FormatFloat(float64(porcentajeDisco), 'f', 2, 32) + "% del disco</td>"
+										extraExte += "<td>" + strCorregido + "(L)<br></br>" + strconv.FormatFloat(float64(porcentajeDisco), 'f', 2, 32) + "% del disco</td>"
 										numBloq++
-										porDisco := (float64(e.Part_next-(e.Part_s+e.Part_start)) * 100) / float64(m.Mbr_tamano)
+										auxParti2 := uint64((e.Part_next - (e.Part_s + e.Part_start)) * 100)
+										porDisco := float64(auxParti2 / uint64(m.Mbr_tamano))
 										extraExte += "<td>Libre <br></br>" + strconv.FormatFloat(float64(porDisco), 'f', 2, 32) + "% del disco</td>"
 										numBloq++
 									}
-
-									if e.Part_next != -1 {
-										_, err = f.Seek(int64(e.Part_next), 0)
-										if err != nil {
-											panic(err)
-										}
-										err = binary.Read(f, binary.LittleEndian, &auxEbr)
-										if err != nil {
-											panic(err)
-										}
-									} else {
-										break
-									}
 								}
-								extraExte += "</tr>"
-								archivoGrafica += "<td colspan ='" + strconv.Itoa(numBloq) + "'>Extendida</td>"
+							}
+
+							if e.Part_next != -1 {
+								_, err = f.Seek(int64(e.Part_next), 0)
+								if err != nil {
+									panic(err)
+								}
+								err = binary.Read(f, binary.LittleEndian, &auxEbr)
+								if err != nil {
+									panic(err)
+								}
+							} else {
+								break
 							}
 						}
 					}
+					extraExte += "</tr>"
+					archivoGrafica += "<td colspan ='" + strconv.Itoa(numBloq) + "'>Extendida</td>"
 				} else {
-					if i == 3 {
-						if m.Particiones[i].Part_s+m.Particiones[i].Part_start == m.Mbr_tamano {
-							str := string(m.Particiones[i].Part_name[:])
-							strCorregido := strings.TrimRight(str, string('\x00'))
-							auxParti := uint64(m.Particiones[i].Part_s * 100)
-							porcentajeDisco := float64(auxParti / uint64(m.Mbr_tamano))
-							archivoGrafica += "<td rowspan ='2'>" + strCorregido + "(P)<br></br>" + strconv.FormatFloat(float64(porcentajeDisco), 'f', -1, 32) + "% del disco</td>"
-						} else {
-							falta := m.Mbr_tamano - (m.Particiones[i].Part_s + m.Particiones[i].Part_start)
-							str := string(m.Particiones[i].Part_name[:])
-							strCorregido := strings.TrimRight(str, string('\x00'))
-							auxParti := uint64(m.Particiones[i].Part_s * 100)
-							porcentajeDisco := float64(auxParti / uint64(m.Mbr_tamano))
-							archivoGrafica += "<td rowspan ='2'>" + strCorregido + "(P)<br></br>" + strconv.FormatFloat(float64(porcentajeDisco), 'f', -1, 32) + "% del disco</td>"
-							auxParti = uint64(falta * 100)
-							porDisco := float64(auxParti / uint64(m.Mbr_tamano))
-							archivoGrafica += "<td rowspan ='2'>Libre <br></br>" + strconv.FormatFloat(float64(porDisco), 'f', -1, 32) + "% del disco</td>"
-						}
+					if m.Particiones[i].Part_name[0] == '\x00' && m.Particiones[i].Part_s != -1 {
+						auxParti := uint64(m.Particiones[i].Part_start * 100)
+						porDisco := float64(auxParti / uint64(m.Mbr_tamano))
+						archivoGrafica += "<td rowspan ='2'>Libre <br></br>" + strconv.FormatFloat(float64(porDisco), 'f', -1, 32) + "% del disco</td>"
 					} else {
-						if m.Particiones[i].Part_s+m.Particiones[i].Part_start == m.Particiones[i+1].Part_start {
-							str := string(m.Particiones[i].Part_name[:])
-							strCorregido := strings.TrimRight(str, string('\x00'))
-							auxParti := uint64(m.Particiones[i].Part_s * 100)
-							porcentajeDisco := float64(auxParti / uint64(m.Mbr_tamano))
-							archivoGrafica += "<td rowspan ='2'>" + strCorregido + "(P)<br></br>" + strconv.FormatFloat(float64(porcentajeDisco), 'f', -1, 32) + "% del disco</td>"
-						} else {
-							if m.Particiones[i+1].Part_start != -1 {
-								falta := m.Particiones[i+1].Part_start - (m.Particiones[i].Part_s + m.Particiones[i].Part_start)
+						if i == 3 && yaLibre == false {
+							if m.Particiones[i].Part_s+m.Particiones[i].Part_start == m.Mbr_tamano {
 								str := string(m.Particiones[i].Part_name[:])
 								strCorregido := strings.TrimRight(str, string('\x00'))
 								auxParti := uint64(m.Particiones[i].Part_s * 100)
 								porcentajeDisco := float64(auxParti / uint64(m.Mbr_tamano))
 								archivoGrafica += "<td rowspan ='2'>" + strCorregido + "(P)<br></br>" + strconv.FormatFloat(float64(porcentajeDisco), 'f', -1, 32) + "% del disco</td>"
-								auxParti = uint64(falta * 100)
-								fmt.Println(falta * 100)
-								fmt.Println(m.Mbr_tamano)
-								porDisco := float64(auxParti / uint64(m.Mbr_tamano))
-								fmt.Println(porDisco)
-								archivoGrafica += "<td rowspan ='2'>Libre <br></br>" + strconv.FormatFloat(float64(porDisco), 'f', -1, 32) + "% del disco</td>"
 							} else {
 								falta := m.Mbr_tamano - (m.Particiones[i].Part_s + m.Particiones[i].Part_start)
 								str := string(m.Particiones[i].Part_name[:])
@@ -2376,11 +2359,74 @@ func diskRep(path string, id string) {
 								archivoGrafica += "<td rowspan ='2'>" + strCorregido + "(P)<br></br>" + strconv.FormatFloat(float64(porcentajeDisco), 'f', -1, 32) + "% del disco</td>"
 								auxParti = uint64(falta * 100)
 								porDisco := float64(auxParti / uint64(m.Mbr_tamano))
-								fmt.Println(porDisco)
 								archivoGrafica += "<td rowspan ='2'>Libre <br></br>" + strconv.FormatFloat(float64(porDisco), 'f', -1, 32) + "% del disco</td>"
+								yaLibre = true
+							}
+						} else {
+							if m.Particiones[i].Part_s+m.Particiones[i].Part_start == m.Particiones[i+1].Part_start && m.Particiones[i+1].Part_s != -1 {
+								str := string(m.Particiones[i].Part_name[:])
+								strCorregido := strings.TrimRight(str, string('\x00'))
+								auxParti := uint64(m.Particiones[i].Part_s * 100)
+								porcentajeDisco := float64(auxParti / uint64(m.Mbr_tamano))
+								archivoGrafica += "<td rowspan ='2'>" + strCorregido + "(P)<br></br>" + strconv.FormatFloat(float64(porcentajeDisco), 'f', -1, 32) + "% del disco</td>"
+							} else if m.Particiones[i].Part_s == -1 && yaLibre == false {
+								if i == 0 {
+									auxParti := uint64(m.Mbr_tamano * 100)
+									porDisco := float64(auxParti / uint64(m.Mbr_tamano))
+									archivoGrafica += "<td rowspan ='2'>Libre <br></br>" + strconv.FormatFloat(float64(porDisco), 'f', -1, 32) + "% del disco</td>"
+									yaLibre = true
+								} else {
+									auxParti := uint64((m.Mbr_tamano - (m.Particiones[i-1].Part_s + m.Particiones[i-1].Part_start)) * 100)
+									porDisco := float64(auxParti / uint64(m.Mbr_tamano))
+									archivoGrafica += "<td rowspan ='2'>Libre <br></br>" + strconv.FormatFloat(float64(porDisco), 'f', -1, 32) + "% del disco</td>"
+									yaLibre = true
+								}
+							} else {
+								if m.Particiones[i+1].Part_start != -1 {
+									falta := m.Particiones[i+1].Part_start - (m.Particiones[i].Part_s + m.Particiones[i].Part_start)
+									str := string(m.Particiones[i].Part_name[:])
+									strCorregido := strings.TrimRight(str, string('\x00'))
+									auxParti := uint64(m.Particiones[i].Part_s * 100)
+									porcentajeDisco := float64(auxParti / uint64(m.Mbr_tamano))
+									archivoGrafica += "<td rowspan ='2'>" + strCorregido + "(P)<br></br>" + strconv.FormatFloat(float64(porcentajeDisco), 'f', -1, 32) + "% del disco</td>"
+									auxParti = uint64(falta * 100)
+									porDisco := float64(auxParti / uint64(m.Mbr_tamano))
+									fmt.Println(porDisco)
+									archivoGrafica += "<td rowspan ='2'>Libre <br></br>" + strconv.FormatFloat(float64(porDisco), 'f', -1, 32) + "% del disco</td>"
+								} else {
+									falta := m.Mbr_tamano - (m.Particiones[i].Part_s + m.Particiones[i].Part_start)
+									str := string(m.Particiones[i].Part_name[:])
+									strCorregido := strings.TrimRight(str, string('\x00'))
+									auxParti := uint64(m.Particiones[i].Part_s * 100)
+									porcentajeDisco := float64(auxParti / uint64(m.Mbr_tamano))
+									archivoGrafica += "<td rowspan ='2'>" + strCorregido + "(P)<br></br>" + strconv.FormatFloat(float64(porcentajeDisco), 'f', -1, 32) + "% del disco</td>"
+									auxParti = uint64(falta * 100)
+									porDisco := float64(auxParti / uint64(m.Mbr_tamano))
+									fmt.Println(porDisco)
+									archivoGrafica += "<td rowspan ='2'>Libre <br></br>" + strconv.FormatFloat(float64(porDisco), 'f', -1, 32) + "% del disco</td>"
 
+								}
 							}
 						}
+
+					}
+				}
+			} else {
+				if m.Particiones[i].Part_name[0] == '\x00' && m.Particiones[i].Part_s != -1 {
+					auxParti := uint64(m.Particiones[i].Part_start * 100)
+					porDisco := float64(auxParti / uint64(m.Mbr_tamano))
+					archivoGrafica += "<td rowspan ='2'>Libre <br></br>" + strconv.FormatFloat(float64(porDisco), 'f', -1, 32) + "% del disco</td>"
+				} else if m.Particiones[i].Part_s == -1 && yaLibre == false {
+					if i == 0 {
+						auxParti := uint64(m.Mbr_tamano * 100)
+						porDisco := float64(auxParti / uint64(m.Mbr_tamano))
+						archivoGrafica += "<td rowspan ='2'>Libre <br></br>" + strconv.FormatFloat(float64(porDisco), 'f', -1, 32) + "% del disco</td>"
+						yaLibre = true
+					} else {
+						auxParti := uint64((m.Mbr_tamano - (m.Particiones[i-1].Part_s + m.Particiones[i-1].Part_start)) * 100)
+						porDisco := float64(auxParti / uint64(m.Mbr_tamano))
+						archivoGrafica += "<td rowspan ='2'>Libre <br></br>" + strconv.FormatFloat(float64(porDisco), 'f', -1, 32) + "% del disco</td>"
+						yaLibre = true
 					}
 				}
 			}
@@ -2397,6 +2443,112 @@ func diskRep(path string, id string) {
 		fmt.Println("Se creo el reporte con exito.")
 		addConsola("Se creo el reporte con exito.")
 		reporte = archivoGrafica
+	}
+}
+
+func superBloqueRep(path string, id string) {
+	encontre := false
+	var mf MountFormat
+	for idMount, mountItem := range mountMap {
+		if idMount == id {
+			mf = mountItem
+			encontre = true
+		}
+	}
+	if encontre == true {
+		if mf.Part_type == 'P' {
+			f, err := os.OpenFile(mf.Path, os.O_RDWR, 0644)
+			if err != nil {
+				log.Fatal(err)
+			}
+			defer f.Close()
+			_, err = f.Seek(int64(mf.Part_start), 0)
+			if err != nil {
+				log.Fatal(err)
+			}
+			sb := SuperBloque{}
+			err = binary.Read(f, binary.LittleEndian, &sb)
+			if err != nil {
+				log.Fatal(err)
+			}
+			archivoGrafica := "digraph G { \nnode [fontname=\"Comic Sans MS\"];tbl [\n" +
+				"\n" +
+				"    shape=plaintext\n" +
+				"    label=<\n" +
+				"\n" +
+				"      <table border='0' cellborder='1' color='black' cellspacing='0'>"
+			archivoGrafica += "\n<tr><td colspan ='2' bgcolor=\"#1C5F1D\"><font color=\"#FFFFFF\">Reporte Super Bloque</font></td></tr>"
+			archivoGrafica += "\n<tr><td>s_filesystem_type</td><td>" + strconv.Itoa(int(sb.S_filesystem_type)) + "</td></tr>"
+			archivoGrafica += "\n<tr><td bgcolor=\"#31A233\">s_inodes_count</td><td bgcolor=\"#31A233\">" + strconv.Itoa(int(sb.S_inodes_count)) + "</td></tr>"
+			archivoGrafica += "\n<tr><td>s_blocks_count</td><td>" + strconv.Itoa(int(sb.S_blocks_count)) + "</td></tr>"
+			archivoGrafica += "\n<tr><td bgcolor=\"#31A233\">s_free_blocks_count</td><td bgcolor=\"#31A233\">" + strconv.Itoa(int(sb.S_free_blocks_count)) + "</td></tr>"
+			archivoGrafica += "\n<tr><td>s_free_inodes_count</td><td>" + strconv.Itoa(int(sb.S_free_inodes_count)) + "</td></tr>"
+			str := string(sb.S_mtime[:])
+			strCorregido := strings.TrimRight(str, string('\x00'))
+			archivoGrafica += "\n<tr><td bgcolor=\"#31A233\">s_mtime</td><td bgcolor=\"#31A233\">" + strCorregido + "</td></tr>"
+			archivoGrafica += "\n<tr><td bgcolor=\"#31A233\">s_mnt_count</td><td bgcolor=\"#31A233\">" + strconv.Itoa(int(sb.S_mnt_count)) + "</td></tr>"
+			archivoGrafica += "\n<tr><td>s_magic</td><td>" + strconv.Itoa(int(sb.S_magic)) + "</td></tr>"
+			archivoGrafica += "\n<tr><td bgcolor=\"#31A233\">s_inode_s</td><td bgcolor=\"#31A233\">" + strconv.Itoa(int(sb.S_inode_size)) + "</td></tr>"
+			archivoGrafica += "\n<tr><td>s_block_s</td><td>" + strconv.Itoa(int(sb.S_block_size)) + "</td></tr>"
+			archivoGrafica += "\n<tr><td bgcolor=\"#31A233\">s_firts_ino</td><td bgcolor=\"#31A233\">" + strconv.Itoa(int(sb.S_firts_ino)) + "</td></tr>"
+			archivoGrafica += "\n<tr><td>s_first_blo</td><td>" + strconv.Itoa(int(sb.S_first_blo)) + "</td></tr>"
+			archivoGrafica += "\n<tr><td bgcolor=\"#31A233\">s_bm_inode_start</td><td bgcolor=\"#31A233\">" + strconv.Itoa(int(sb.S_bm_inode_start)) + "</td></tr>"
+			archivoGrafica += "\n<tr><td>s_bm_block_start</td><td>" + strconv.Itoa(int(sb.S_bm_block_start)) + "</td></tr>"
+			archivoGrafica += "\n<tr><td bgcolor=\"#31A233\">s_inode_start</td><td bgcolor=\"#31A233\">" + strconv.Itoa(int(sb.S_inode_start)) + "</td></tr>"
+			archivoGrafica += "\n<tr><td>s_block_start</td><td>" + strconv.Itoa(int(sb.S_block_start)) + "</td></tr>"
+
+			archivoGrafica += "</table>\n" + "\n" + "    >];\n" + "\n" + "}"
+			fmt.Println("Se creo el reporte con exito.")
+			addConsola("Se creo el reporte con exito.")
+			reporte = archivoGrafica
+		} else if mf.Part_type == 'L' {
+			var infoEbr Ebr
+			const infoSizeEbr = unsafe.Sizeof(infoEbr)
+			f, err := os.OpenFile(mf.Path, os.O_RDWR, 0644)
+			if err != nil {
+				log.Fatal(err)
+			}
+			defer f.Close()
+			_, err = f.Seek(int64(mf.Part_start)+int64(infoSizeEbr)+int64(unsafe.Sizeof(byte(0))), 0)
+			if err != nil {
+				log.Fatal(err)
+			}
+			sb := SuperBloque{}
+			err = binary.Read(f, binary.LittleEndian, &sb)
+			if err != nil {
+				log.Fatal(err)
+			}
+			archivoGrafica := "digraph G { \nnode [fontname=\"Comic Sans MS\"];tbl [\n" +
+				"\n" +
+				"    shape=plaintext\n" +
+				"    label=<\n" +
+				"\n" +
+				"      <table border='0' cellborder='1' color='black' cellspacing='0'>"
+			archivoGrafica += "\n<tr><td colspan ='2' bgcolor=\"#1C5F1D\"><font color=\"#FFFFFF\">Reporte Super Bloque</font></td></tr>"
+			archivoGrafica += "\n<tr><td>s_filesystem_type</td><td>" + strconv.Itoa(int(sb.S_filesystem_type)) + "</td></tr>"
+			archivoGrafica += "\n<tr><td bgcolor=\"#31A233\">s_inodes_count</td><td bgcolor=\"#31A233\">" + strconv.Itoa(int(sb.S_inodes_count)) + "</td></tr>"
+			archivoGrafica += "\n<tr><td>s_blocks_count</td><td>" + strconv.Itoa(int(sb.S_blocks_count)) + "</td></tr>"
+			archivoGrafica += "\n<tr><td bgcolor=\"#31A233\">s_free_blocks_count</td><td bgcolor=\"#31A233\">" + strconv.Itoa(int(sb.S_free_blocks_count)) + "</td></tr>"
+			archivoGrafica += "\n<tr><td>s_free_inodes_count</td><td>" + strconv.Itoa(int(sb.S_free_inodes_count)) + "</td></tr>"
+			str := string(sb.S_mtime[:])
+			strCorregido := strings.TrimRight(str, string('\x00'))
+			archivoGrafica += "\n<tr><td bgcolor=\"#31A233\">s_mtime</td><td bgcolor=\"#31A233\">" + strCorregido + "</td></tr>"
+			archivoGrafica += "\n<tr><td bgcolor=\"#31A233\">s_mnt_count</td><td bgcolor=\"#31A233\">" + strconv.Itoa(int(sb.S_mnt_count)) + "</td></tr>"
+			archivoGrafica += "\n<tr><td>s_magic</td><td>" + strconv.Itoa(int(sb.S_magic)) + "</td></tr>"
+			archivoGrafica += "\n<tr><td bgcolor=\"#31A233\">s_inode_s</td><td bgcolor=\"#31A233\">" + strconv.Itoa(int(sb.S_inode_size)) + "</td></tr>"
+			archivoGrafica += "\n<tr><td>s_block_s</td><td>" + strconv.Itoa(int(sb.S_block_size)) + "</td></tr>"
+			archivoGrafica += "\n<tr><td bgcolor=\"#31A233\">s_firts_ino</td><td bgcolor=\"#31A233\">" + strconv.Itoa(int(sb.S_firts_ino)) + "</td></tr>"
+			archivoGrafica += "\n<tr><td>s_first_blo</td><td>" + strconv.Itoa(int(sb.S_first_blo)) + "</td></tr>"
+			archivoGrafica += "\n<tr><td bgcolor=\"#31A233\">s_bm_inode_start</td><td bgcolor=\"#31A233\">" + strconv.Itoa(int(sb.S_bm_inode_start)) + "</td></tr>"
+			archivoGrafica += "\n<tr><td>s_bm_block_start</td><td>" + strconv.Itoa(int(sb.S_bm_block_start)) + "</td></tr>"
+			archivoGrafica += "\n<tr><td bgcolor=\"#31A233\">s_inode_start</td><td bgcolor=\"#31A233\">" + strconv.Itoa(int(sb.S_inode_start)) + "</td></tr>"
+			archivoGrafica += "\n<tr><td>s_block_start</td><td>" + strconv.Itoa(int(sb.S_block_start)) + "</td></tr>"
+
+			archivoGrafica += "</table>\n" + "\n" + "    >];\n" + "\n" + "}"
+			fmt.Println("Se creo el reporte con exito.")
+			addConsola("Se creo el reporte con exito.")
+			reporte = archivoGrafica
+		}
 	}
 }
 
@@ -2630,9 +2782,11 @@ func login(tokens []string) {
 				if err != nil {
 					log.Fatal(err)
 				}
+				fmt.Println("ENTRE PRUEBA")
 
 				for _, s := range inodoRaiz.I_block {
 					if s != -1 {
+						fmt.Println("ENTRE PRUEBA IF")
 						_, err = f.Seek(int64(inicioBloques), 0)
 						if err != nil {
 							log.Fatal(err)
@@ -2648,6 +2802,7 @@ func login(tokens []string) {
 						strUsuariosGrupos := ""
 
 						if strCorregido == "users.txt" {
+							fmt.Println("ENTRE PRUEBA USERS")
 							buscarEnInodos := inicioInodos
 							_, err = f.Seek(int64(inicioInodos), 0)
 							if err != nil {
@@ -2673,6 +2828,7 @@ func login(tokens []string) {
 								}
 
 								if contador == int(bloqcar.B_content[2].B_inodo) {
+									fmt.Println("ENTRE PRUEBA INODOS")
 									fmt.Println("PRUEBO QUE PASA2")
 									if in.I_block[1] == -1 {
 										ver, err = f.Seek(int64(inicioBloques), 0)
@@ -2865,8 +3021,8 @@ func addConsola(parte string) {
 func main() {
 	http.HandleFunc("/read", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS, POST")
-		w.Header().Set("Access-Control-Allow-Headers", "Access-Control-Allow-Origin, Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
+		//w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS, POST")
+		//w.Header().Set("Access-Control-Allow-Headers", "Access-Control-Allow-Origin, Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
 		b, err := ioutil.ReadAll(r.Body)
 		if err != nil {
 			panic(err)

@@ -13,6 +13,7 @@ import { MessagesModule } from 'primeng/messages';
 import { MessageModule } from 'primeng/message';
 import { NavbardashComponent } from './componentes/navbardash/navbardash.component';
 import { InicioComponent } from './componentes/inicio/inicio.component';
+import { ReportesComponent } from './componentes/reportes/reportes.component';
 
 @NgModule({
   declarations: [
@@ -22,7 +23,8 @@ import { InicioComponent } from './componentes/inicio/inicio.component';
     LoginComponent,
     DashboardComponent,
     NavbardashComponent,
-    InicioComponent
+    InicioComponent,
+    ReportesComponent
   ],
   imports: [
     BrowserModule,

@@ -1,6 +1,6 @@
 {
     "/read":{
-        "target": "http://18.116.238.48",
+        "target": "http://localhost:8080",
         "secure":false,
         "logLevel": "debug",
         "changeOrigin" : true

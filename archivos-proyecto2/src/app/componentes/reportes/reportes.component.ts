@@ -44,4 +44,20 @@ export class ReportesComponent {
       }
     )
   }
+
+  reporteTree(){
+    let id:any = localStorage.getItem('idParti')
+    let datos = {  
+      Consola: "rep >id="+id+" >Path=/home/yeinny/Documentos/MIA/Disco4.jpg >name=tree"
+      };
+      
+    let stringifiedData = JSON.stringify(datos);
+    this.servicio.mandarComando(stringifiedData).subscribe(
+      (response:any) =>{
+        console.log(response)
+
+        graphviz('#tree').renderDot(response.reporte);
+      }
+    )
+  }
 }

@@ -1856,7 +1856,7 @@ func mkfs(tokens []string) {
 				raiz.I_atime = array
 				raiz.I_ctime = array
 				raiz.I_mtime = array
-				for i := 0; i < 15; i++ {
+				for i := 0; i < 16; i++ {
 					raiz.I_block[i] = -1
 				}
 				raiz.I_type = '0'
@@ -1884,6 +1884,10 @@ func mkfs(tokens []string) {
 				contenidoR.B_inodo = 1
 				bcRoot.B_content[2] = contenidoR
 				var arrayVacio [12]byte
+				longitud = len(arrayVacio)
+				for i := 0; i < longitud; i++ {
+					arrayVacio[i] = ' '
+				}
 				contenidoR.B_name = arrayVacio
 				contenidoR.B_inodo = -1
 				bcRoot.B_content[3] = contenidoR
@@ -2084,6 +2088,10 @@ func mkfs(tokens []string) {
 				contenidoR.B_inodo = 1
 				bcRoot.B_content[2] = contenidoR
 				var arrayVacio [12]byte
+				longitud = len(arrayVacio)
+				for i := 0; i < longitud; i++ {
+					arrayVacio[i] = ' '
+				}
 				contenidoR.B_name = arrayVacio
 				contenidoR.B_inodo = -1
 				bcRoot.B_content[3] = contenidoR
@@ -2215,6 +2223,8 @@ func rep(tokens []string) {
 			diskRep(path, id)
 		case "sb":
 			superBloqueRep(path, id)
+		case "tree":
+			treeRep(path, id)
 		}
 	}
 }
@@ -2545,6 +2555,349 @@ func superBloqueRep(path string, id string) {
 			archivoGrafica += "\n<tr><td>s_block_start</td><td>" + strconv.Itoa(int(sb.S_block_start)) + "</td></tr>"
 
 			archivoGrafica += "</table>\n" + "\n" + "    >];\n" + "\n" + "}"
+			fmt.Println("Se creo el reporte con exito.")
+			addConsola("Se creo el reporte con exito.")
+			reporte = archivoGrafica
+		}
+	}
+}
+
+func treeRep(path string, id string) {
+	fmt.Println("HOLA")
+	encontre := false
+	var mf MountFormat
+	for idMount, mountItem := range mountMap {
+		if idMount == id {
+			mf = mountItem
+			encontre = true
+		}
+	}
+	if encontre == true {
+		var infoEbr Ebr
+		const infoSizeEbr = unsafe.Sizeof(infoEbr)
+		var infoInodo Inodo
+		const infoSizeInodo = unsafe.Sizeof(infoInodo)
+		var infoBloqueArchi BloqueArchivos
+		const infoSizeBloqueArchi = unsafe.Sizeof(infoBloqueArchi)
+		var infoSuperBloque SuperBloque
+		const infoSizeSuperBloque = unsafe.Sizeof(infoSuperBloque)
+		if mf.Part_type == 'P' {
+			f, err := os.OpenFile(mf.Path, os.O_RDWR, 0644)
+			if err != nil {
+				log.Fatal(err)
+			}
+			defer f.Close()
+			_, err = f.Seek(int64(mf.Part_start), 0)
+			if err != nil {
+				log.Fatal(err)
+			}
+			sb := SuperBloque{}
+			err = binary.Read(f, binary.LittleEndian, &sb)
+			if err != nil {
+				log.Fatal(err)
+			}
+			inicioInodos := sb.S_inode_start
+			inicioBloques := sb.S_block_start
+			parteConexion := ""
+			archivoGrafica := "digraph {\n" +
+				"graph [pad=\"0.5\", nodesep=\"0.5\"];\n node [shape=none, fontname=\"Comic Sans MS\"]\nrankdir=LR;\n"
+
+			buscarEnInodos := inicioInodos
+			_, err = f.Seek(int64(inicioInodos), 0)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			var auxParti byte
+			err = binary.Read(f, binary.LittleEndian, &auxParti)
+			if err != nil {
+				panic(err)
+			}
+			contador := 0
+			for auxParti != '\x00' {
+				var in Inodo
+				ver, err := f.Seek(buscarEnInodos, 0)
+				fmt.Println(ver)
+				if err != nil {
+					log.Fatal(err)
+				}
+				err = binary.Read(f, binary.LittleEndian, &in)
+				if err != nil {
+					panic(err)
+				}
+
+				archivoGrafica += "inodo" + strconv.Itoa(contador) + "[label=<<table port=\"eth0\" border='0' cellborder='1' color='black' cellspacing='0'>\n"
+				archivoGrafica += "<tr><td bgcolor=\"#7CECE4\">Inodo</td><td bgcolor=\"#7CECE4\">" + strconv.Itoa(contador) + "</td></tr>\n"
+				archivoGrafica += "<tr><td >UID</td><td>" + strconv.Itoa(int(in.I_uid)) + "</td></tr>\n"
+				archivoGrafica += "<tr><td >GID</td><td>" + strconv.Itoa(int(in.I_gid)) + "</td></tr>\n"
+				archivoGrafica += "<tr><td >SIZE</td><td>" + strconv.Itoa(int(in.I_size)) + "</td></tr>\n"
+				str := string(in.I_atime[:])
+				strCorregido := strings.TrimRight(str, string('\x00'))
+				archivoGrafica += "<tr><td >LECTURA</td><td>" + strCorregido + "</td></tr>\n"
+				str = string(in.I_mtime[:])
+				strCorregido = strings.TrimRight(str, string('\x00'))
+				archivoGrafica += "<tr><td >MODIFICACION</td><td>" + strCorregido + "</td></tr>\n"
+				str = string(in.I_ctime[:])
+				strCorregido = strings.TrimRight(str, string('\x00'))
+				archivoGrafica += "<tr><td >CREACION</td><td>" + strCorregido + "</td></tr>\n"
+				for i := 0; i < len(in.I_block); i++ {
+					archivoGrafica += "<tr><td bgcolor=\"#F5ED81\">ap" + strconv.Itoa(i) + "</td><td port=\"eth" + strconv.Itoa(i+1) + "\">" + strconv.Itoa(int(in.I_block[i])) + "</td></tr>" + strCorregido + "</td></tr>\n"
+					if in.I_block[i] != -1 {
+						parteConexion += "inodo" + strconv.Itoa(contador) + ":eth" + strconv.Itoa(i+1) + " -> " + "bloque" + strconv.Itoa(int(in.I_block[i])) + ":eth0 [dir=none ]\n"
+					}
+				}
+				archivoGrafica += "<tr><td >TIPO</td><td>" + strconv.Itoa(int(in.I_type)) + "</td></tr>\n"
+				archivoGrafica += "<tr><td >PERMISOS</td><td>" + strconv.Itoa(int(in.I_type)) + "</td></tr>\n"
+				archivoGrafica += "</table>>];\n"
+				buscarEnInodos += int64(infoSizeInodo)
+
+				ver, err = f.Seek(buscarEnInodos, 0)
+				fmt.Println(ver)
+				if err != nil {
+					panic(err)
+				}
+
+				err = binary.Read(f, binary.LittleEndian, &auxParti)
+				if err != nil {
+					panic(err)
+				}
+				contador++
+			}
+
+			buscarEnBloques := inicioBloques
+			_, err = f.Seek(int64(inicioBloques), 0)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			err = binary.Read(f, binary.LittleEndian, &auxParti)
+			if err != nil {
+				panic(err)
+			}
+			contador = 0
+			for auxParti != '\x00' {
+				if contador == 0 {
+					var bloq BloqueCarpetas
+					ver, err := f.Seek(buscarEnBloques, 0)
+					fmt.Println(ver)
+					if err != nil {
+						log.Fatal(err)
+					}
+					err = binary.Read(f, binary.LittleEndian, &bloq)
+					if err != nil {
+						panic(err)
+					}
+					archivoGrafica += "bloque" + strconv.Itoa(contador) + "[label=<<table port=\"eth0\" border='0' cellborder='1' color='black' cellspacing='0'>\n"
+					archivoGrafica += "<tr><td port=\"eth0\" bgcolor=\"#88D57C\">Block</td><td bgcolor=\"#88D57C\">" + strconv.Itoa(contador) + "</td></tr>\n"
+					for i := 0; i < len(bloq.B_content); i++ {
+						str := string(bloq.B_content[i].B_name[:])
+						strCorregido := strings.TrimRight(str, string('\x00'))
+						archivoGrafica += "<tr><td >" + strCorregido + "</td><td  port=\"eth" + strconv.Itoa(i+1) + "\">" + strconv.Itoa(int(bloq.B_content[i].B_inodo)) + "</td></tr>\n"
+						if bloq.B_content[i].B_inodo != -1 {
+							parteConexion += "bloque" + strconv.Itoa(contador) + ":eth" + strconv.Itoa(i+1) + " -> " + "inodo" + strconv.Itoa(int(bloq.B_content[i].B_inodo)) + ":eth0 [dir=none ]\n"
+						}
+					}
+					archivoGrafica += "</table>>];\n"
+
+				} else if contador == 1 {
+					var bloq BloqueArchivos
+					ver, err := f.Seek(buscarEnBloques, 0)
+					fmt.Println(ver)
+					if err != nil {
+						log.Fatal(err)
+					}
+					err = binary.Read(f, binary.LittleEndian, &bloq)
+					if err != nil {
+						panic(err)
+					}
+					archivoGrafica += "bloque" + strconv.Itoa(contador) + "[label=<<table port=\"eth0\" border='0' cellborder='1' color='black' cellspacing='0'>\n"
+					archivoGrafica += "<tr><td port=\"eth0\" bgcolor=\"#88D57C\">Block</td><td bgcolor=\"#88D57C\">" + strconv.Itoa(contador) + "</td></tr>\n"
+					str := string(bloq.B_content[:])
+					strCorregido := strings.TrimRight(str, string('\x00'))
+					archivoGrafica += "<tr><td >" + strCorregido + "</td><td></td></tr>\n"
+					archivoGrafica += "</table>>];\n"
+				}
+
+				buscarEnBloques += int64(infoSizeBloqueArchi)
+
+				_, err = f.Seek(buscarEnBloques, 0)
+				if err != nil {
+					panic(err)
+				}
+
+				err = binary.Read(f, binary.LittleEndian, &auxParti)
+				if err != nil {
+					panic(err)
+				}
+				contador++
+			}
+
+			archivoGrafica += parteConexion
+
+			archivoGrafica = "}"
+			fmt.Println("Se creo el reporte con exito.")
+			addConsola("Se creo el reporte con exito.")
+			reporte = archivoGrafica
+		} else if mf.Part_type == 'L' {
+			f, err := os.OpenFile(mf.Path, os.O_RDWR, 0644)
+			if err != nil {
+				log.Fatal(err)
+			}
+			defer f.Close()
+			_, err = f.Seek(int64(mf.Part_start)+int64(infoSizeEbr)+int64(unsafe.Sizeof(byte(0))), 0)
+			if err != nil {
+				log.Fatal(err)
+			}
+			sb := SuperBloque{}
+			err = binary.Read(f, binary.LittleEndian, &sb)
+			if err != nil {
+				log.Fatal(err)
+			}
+			inicioInodos := sb.S_inode_start
+			inicioBloques := sb.S_block_start
+			parteConexion := ""
+			archivoGrafica := "digraph {\n" +
+				"graph [pad=\"0.5\", nodesep=\"0.5\"];\n node [shape=none, fontname=\"Comic Sans MS\"]\nrankdir=LR;\n"
+
+			buscarEnInodos := inicioInodos
+			_, err = f.Seek(int64(inicioInodos), 0)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			var auxParti byte
+			err = binary.Read(f, binary.LittleEndian, &auxParti)
+			if err != nil {
+				panic(err)
+			}
+			contador := 0
+			for auxParti != '\x00' {
+				var in Inodo
+				ver, err := f.Seek(buscarEnInodos, 0)
+				fmt.Println(ver)
+				if err != nil {
+					log.Fatal(err)
+				}
+				err = binary.Read(f, binary.LittleEndian, &in)
+				if err != nil {
+					panic(err)
+				}
+
+				archivoGrafica += "inodo" + strconv.Itoa(contador) + "[label=<<table port=\"eth0\" border='0' cellborder='1' color='black' cellspacing='0'>\n"
+				archivoGrafica += "<tr><td bgcolor=\"#7CECE4\">Inodo</td><td bgcolor=\"#7CECE4\">" + strconv.Itoa(contador) + "</td></tr>\n"
+				archivoGrafica += "<tr><td >UID</td><td>" + strconv.Itoa(int(in.I_uid)) + "</td></tr>\n"
+				archivoGrafica += "<tr><td >GID</td><td>" + strconv.Itoa(int(in.I_gid)) + "</td></tr>\n"
+				archivoGrafica += "<tr><td >SIZE</td><td>" + strconv.Itoa(int(in.I_size)) + "</td></tr>\n"
+				str := string(in.I_atime[:])
+				strCorregido := strings.TrimRight(str, string('\x00'))
+				archivoGrafica += "<tr><td >LECTURA</td><td>" + strCorregido + "</td></tr>\n"
+				str = string(in.I_mtime[:])
+				strCorregido = strings.TrimRight(str, string('\x00'))
+				archivoGrafica += "<tr><td >MODIFICACION</td><td>" + strCorregido + "</td></tr>\n"
+				str = string(in.I_ctime[:])
+				strCorregido = strings.TrimRight(str, string('\x00'))
+				archivoGrafica += "<tr><td >CREACION</td><td>" + strCorregido + "</td></tr>\n"
+				for i := 0; i < len(in.I_block); i++ {
+					archivoGrafica += "<tr><td bgcolor=\"#F5ED81\">ap" + strconv.Itoa(i) + "</td><td port=\"eth" + strconv.Itoa(i+1) + "\">" + strconv.Itoa(int(in.I_block[i])) + "</td></tr>\n"
+					if in.I_block[i] != -1 {
+						parteConexion += "inodo" + strconv.Itoa(contador) + ":eth" + strconv.Itoa(i+1) + " -> " + "bloque" + strconv.Itoa(int(in.I_block[i])) + ":eth0 [dir=none ]\n"
+					}
+				}
+				archivoGrafica += "<tr><td >TIPO</td><td>" + string(in.I_type) + "</td></tr>\n"
+				archivoGrafica += "<tr><td >PERMISOS</td><td>" + strconv.Itoa(int(in.I_perm)) + "</td></tr>\n"
+				archivoGrafica += "</table>>];\n"
+				buscarEnInodos += int64(infoSizeInodo)
+
+				ver, err = f.Seek(buscarEnInodos, 0)
+				fmt.Println(ver)
+				if err != nil {
+					panic(err)
+				}
+
+				err = binary.Read(f, binary.LittleEndian, &auxParti)
+				if err != nil {
+					panic(err)
+				}
+				contador++
+			}
+
+			buscarEnBloques := inicioBloques
+			_, err = f.Seek(int64(inicioBloques), 0)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			err = binary.Read(f, binary.LittleEndian, &auxParti)
+			if err != nil {
+				panic(err)
+			}
+			contador = 0
+			for auxParti != '\x00' {
+				if contador == 0 {
+					var bloq BloqueCarpetas
+					ver, err := f.Seek(buscarEnBloques, 0)
+					fmt.Println(ver)
+					if err != nil {
+						log.Fatal(err)
+					}
+					err = binary.Read(f, binary.LittleEndian, &bloq)
+					if err != nil {
+						panic(err)
+					}
+					archivoGrafica += "bloque" + strconv.Itoa(contador) + "[label=<<table port=\"eth0\" border='0' cellborder='1' color='black' cellspacing='0'>\n"
+					archivoGrafica += "<tr><td port=\"eth0\" bgcolor=\"#88D57C\">Block</td><td bgcolor=\"#88D57C\">" + strconv.Itoa(contador) + "</td></tr>\n"
+					for i := 0; i < len(bloq.B_content); i++ {
+						if i == 3 {
+							archivoGrafica += "<tr><td ></td><td  port=\"eth" + strconv.Itoa(i+1) + "\">-1</td></tr>\n"
+						} else {
+							str := string(bloq.B_content[i].B_name[:])
+							strCorregido := strings.TrimRight(str, string('\x00'))
+							archivoGrafica += "<tr><td >" + strCorregido + "</td><td  port=\"eth" + strconv.Itoa(i+1) + "\">" + strconv.Itoa(int(bloq.B_content[i].B_inodo)) + "</td></tr>\n"
+							if bloq.B_content[i].B_inodo != -1 && bloq.B_content[i].B_inodo != 0 {
+								parteConexion += "bloque" + strconv.Itoa(contador) + ":eth" + strconv.Itoa(i+1) + " -> " + "inodo" + strconv.Itoa(int(bloq.B_content[i].B_inodo)) + ":eth0 [dir=none ]\n"
+							}
+						}
+					}
+					archivoGrafica += "</table>>];\n"
+
+				} else if contador == 1 {
+					var bloq BloqueArchivos
+					ver, err := f.Seek(buscarEnBloques, 0)
+					fmt.Println(ver)
+					if err != nil {
+						log.Fatal(err)
+					}
+					err = binary.Read(f, binary.LittleEndian, &bloq)
+					if err != nil {
+						panic(err)
+					}
+					archivoGrafica += "bloque" + strconv.Itoa(contador) + "[label=<<table port=\"eth0\" border='0' cellborder='1' color='black' cellspacing='0'>\n"
+					archivoGrafica += "<tr><td port=\"eth0\" bgcolor=\"#88D57C\">Block</td><td bgcolor=\"#88D57C\">" + strconv.Itoa(contador) + "</td></tr>\n"
+					str := string(bloq.B_content[:])
+					strCorregido := strings.TrimRight(str, string('\x00'))
+					archivoGrafica += "<tr><td >" + strCorregido + "</td><td></td></tr>\n"
+					archivoGrafica += "</table>>];\n"
+				}
+
+				buscarEnBloques += int64(infoSizeBloqueArchi)
+
+				ver, err := f.Seek(buscarEnBloques, 0)
+				fmt.Println("PRUEBA")
+				fmt.Println(ver)
+				if err != nil {
+					panic(err)
+				}
+
+				err = binary.Read(f, binary.LittleEndian, &auxParti)
+				if err != nil {
+					panic(err)
+				}
+				contador++
+			}
+
+			archivoGrafica += parteConexion
+
+			archivoGrafica += "}"
 			fmt.Println("Se creo el reporte con exito.")
 			addConsola("Se creo el reporte con exito.")
 			reporte = archivoGrafica

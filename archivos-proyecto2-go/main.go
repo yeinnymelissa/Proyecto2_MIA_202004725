@@ -2403,6 +2403,7 @@ func diskRep(path string, id string) {
 									porDisco := float64(auxParti / uint64(m.Mbr_tamano))
 									fmt.Println(porDisco)
 									archivoGrafica += "<td rowspan ='2'>Libre <br></br>" + strconv.FormatFloat(float64(porDisco), 'f', -1, 32) + "% del disco</td>"
+									yaLibre = true
 								} else {
 									falta := m.Mbr_tamano - (m.Particiones[i].Part_s + m.Particiones[i].Part_start)
 									str := string(m.Particiones[i].Part_name[:])
@@ -2414,7 +2415,7 @@ func diskRep(path string, id string) {
 									porDisco := float64(auxParti / uint64(m.Mbr_tamano))
 									fmt.Println(porDisco)
 									archivoGrafica += "<td rowspan ='2'>Libre <br></br>" + strconv.FormatFloat(float64(porDisco), 'f', -1, 32) + "% del disco</td>"
-
+									yaLibre = true
 								}
 							}
 						}
@@ -2641,13 +2642,13 @@ func treeRep(path string, id string) {
 				strCorregido = strings.TrimRight(str, string('\x00'))
 				archivoGrafica += "<tr><td >CREACION</td><td>" + strCorregido + "</td></tr>\n"
 				for i := 0; i < len(in.I_block); i++ {
-					archivoGrafica += "<tr><td bgcolor=\"#F5ED81\">ap" + strconv.Itoa(i) + "</td><td port=\"eth" + strconv.Itoa(i+1) + "\">" + strconv.Itoa(int(in.I_block[i])) + "</td></tr>" + strCorregido + "</td></tr>\n"
+					archivoGrafica += "<tr><td bgcolor=\"#F5ED81\">ap" + strconv.Itoa(i) + "</td><td port=\"eth" + strconv.Itoa(i+1) + "\">" + strconv.Itoa(int(in.I_block[i])) + "</td></tr>\n"
 					if in.I_block[i] != -1 {
 						parteConexion += "inodo" + strconv.Itoa(contador) + ":eth" + strconv.Itoa(i+1) + " -> " + "bloque" + strconv.Itoa(int(in.I_block[i])) + ":eth0 [dir=none ]\n"
 					}
 				}
-				archivoGrafica += "<tr><td >TIPO</td><td>" + strconv.Itoa(int(in.I_type)) + "</td></tr>\n"
-				archivoGrafica += "<tr><td >PERMISOS</td><td>" + strconv.Itoa(int(in.I_type)) + "</td></tr>\n"
+				archivoGrafica += "<tr><td >TIPO</td><td>" + string(in.I_type) + "</td></tr>\n"
+				archivoGrafica += "<tr><td >PERMISOS</td><td>" + strconv.Itoa(int(in.I_perm)) + "</td></tr>\n"
 				archivoGrafica += "</table>>];\n"
 				buscarEnInodos += int64(infoSizeInodo)
 
@@ -2690,11 +2691,15 @@ func treeRep(path string, id string) {
 					archivoGrafica += "bloque" + strconv.Itoa(contador) + "[label=<<table port=\"eth0\" border='0' cellborder='1' color='black' cellspacing='0'>\n"
 					archivoGrafica += "<tr><td port=\"eth0\" bgcolor=\"#88D57C\">Block</td><td bgcolor=\"#88D57C\">" + strconv.Itoa(contador) + "</td></tr>\n"
 					for i := 0; i < len(bloq.B_content); i++ {
-						str := string(bloq.B_content[i].B_name[:])
-						strCorregido := strings.TrimRight(str, string('\x00'))
-						archivoGrafica += "<tr><td >" + strCorregido + "</td><td  port=\"eth" + strconv.Itoa(i+1) + "\">" + strconv.Itoa(int(bloq.B_content[i].B_inodo)) + "</td></tr>\n"
-						if bloq.B_content[i].B_inodo != -1 {
-							parteConexion += "bloque" + strconv.Itoa(contador) + ":eth" + strconv.Itoa(i+1) + " -> " + "inodo" + strconv.Itoa(int(bloq.B_content[i].B_inodo)) + ":eth0 [dir=none ]\n"
+						if i == 3 {
+							archivoGrafica += "<tr><td ></td><td  port=\"eth" + strconv.Itoa(i+1) + "\">-1</td></tr>\n"
+						} else {
+							str := string(bloq.B_content[i].B_name[:])
+							strCorregido := strings.TrimRight(str, string('\x00'))
+							archivoGrafica += "<tr><td >" + strCorregido + "</td><td  port=\"eth" + strconv.Itoa(i+1) + "\">" + strconv.Itoa(int(bloq.B_content[i].B_inodo)) + "</td></tr>\n"
+							if bloq.B_content[i].B_inodo != -1 && bloq.B_content[i].B_inodo != 0 {
+								parteConexion += "bloque" + strconv.Itoa(contador) + ":eth" + strconv.Itoa(i+1) + " -> " + "inodo" + strconv.Itoa(int(bloq.B_content[i].B_inodo)) + ":eth0 [dir=none ]\n"
+							}
 						}
 					}
 					archivoGrafica += "</table>>];\n"
@@ -2720,7 +2725,9 @@ func treeRep(path string, id string) {
 
 				buscarEnBloques += int64(infoSizeBloqueArchi)
 
-				_, err = f.Seek(buscarEnBloques, 0)
+				ver, err := f.Seek(buscarEnBloques, 0)
+				fmt.Println("PRUEBA")
+				fmt.Println(ver)
 				if err != nil {
 					panic(err)
 				}
@@ -2734,7 +2741,7 @@ func treeRep(path string, id string) {
 
 			archivoGrafica += parteConexion
 
-			archivoGrafica = "}"
+			archivoGrafica += "}"
 			fmt.Println("Se creo el reporte con exito.")
 			addConsola("Se creo el reporte con exito.")
 			reporte = archivoGrafica

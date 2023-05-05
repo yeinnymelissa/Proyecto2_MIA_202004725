@@ -2289,7 +2289,7 @@ func diskRep(path string, id string) {
 								extraExte += "<td>Libre <br></br>" + strconv.FormatFloat(float64(porcentajeDisco), 'f', -1, 32) + "% del disco</td>"
 								numBloq++
 							} else {
-								if e.Part_s+e.Part_start == e.Part_next {
+								if e.Part_s+e.Part_start+1 == e.Part_next {
 									str := string(e.Part_name[:])
 									strCorregido := strings.TrimRight(str, string('\x00'))
 									auxParti := uint64(e.Part_s * 100)
@@ -2347,6 +2347,15 @@ func diskRep(path string, id string) {
 					}
 					extraExte += "</tr>"
 					archivoGrafica += "<td colspan ='" + strconv.Itoa(numBloq) + "'>Extendida</td>"
+					if i == 3 {
+						if m.Particiones[i].Part_s+m.Particiones[i].Part_start != m.Mbr_tamano {
+							falta := m.Mbr_tamano - (m.Particiones[i].Part_s + m.Particiones[i].Part_start)
+							auxParti := uint64(falta * 100)
+							porDisco := float64(auxParti / uint64(m.Mbr_tamano))
+							archivoGrafica += "<td rowspan ='2'>Libre <br></br>" + strconv.FormatFloat(float64(porDisco), 'f', -1, 32) + "% del disco</td>"
+							yaLibre = true
+						}
+					}
 				} else {
 					if m.Particiones[i].Part_name[0] == '\x00' && m.Particiones[i].Part_s != -1 {
 						auxParti := uint64(m.Particiones[i].Part_start * 100)
